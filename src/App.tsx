@@ -143,7 +143,7 @@ function App() {
     e.preventDefault(); if (!supabase || !profile) return
     setBusy(true); setError(''); setNotice('')
     try {
-      const { error: e1 } = await supabase.from('products').insert({
+      const { data: createdProduct, error: e1 } = await supabase.from('products').insert({
         company_id:profile.company_id, category_id:productForm.category_id || null,
         base_unit_id:productForm.base_unit_id, sku:productForm.sku.trim(),
         name_en:productForm.name_en.trim(), name_so:productForm.name_so.trim() || null,
@@ -153,8 +153,8 @@ function App() {
         reorder_level:Number(productForm.reorder_level), is_active:true,
       }).select('id').single()
       if (e1) throw e1
-      if (productForm.barcode.trim() && e1.data?.id) {
-        const { error: barcodeError } = await supabase.from('product_units').update({ barcode:productForm.barcode.trim() }).eq('product_id',e1.data.id).eq('is_base_unit',true)
+      if (productForm.barcode.trim() && createdProduct?.id) {
+        const { error: barcodeError } = await supabase.from('product_units').update({ barcode:productForm.barcode.trim() }).eq('product_id',createdProduct.id).eq('is_base_unit',true)
         if (barcodeError) throw barcodeError
       }
       setProductModal(false); setProductForm({sku:'',name_en:'',name_so:'',category_id:'',base_unit_id:'',cost_price:'0',wholesale_price:'0',retail_price:'',reorder_level:'0',description:'',barcode:''})
