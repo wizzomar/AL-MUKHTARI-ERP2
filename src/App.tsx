@@ -81,6 +81,7 @@ function App() {
   const [notice, setNotice] = useState('')
   const [error, setError] = useState('')
   const [productModal, setProductModal] = useState(false)
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [stockModal, setStockModal] = useState<Product | null>(null)
   const [unitsModal, setUnitsModal] = useState<Product | null>(null)
   const [unitForm, setUnitForm] = useState({ unit_id:'', conversion_to_base:'1', barcode:'' })
@@ -143,23 +144,50 @@ function App() {
     e.preventDefault(); if (!supabase || !profile) return
     setBusy(true); setError(''); setNotice('')
     try {
-      const { data: createdProduct, error: e1 } = await supabase.from('products').insert({
+      const productPayload = {
         company_id:profile.company_id, category_id:productForm.category_id || null,
         base_unit_id:productForm.base_unit_id, sku:productForm.sku.trim(),
         name_en:productForm.name_en.trim(), name_so:productForm.name_so.trim() || null,
         description:productForm.description.trim() || null,
         cost_price:Number(productForm.cost_price), wholesale_price:Number(productForm.wholesale_price),
         retail_price:productForm.retail_price === '' ? null : Number(productForm.retail_price),
-        reorder_level:Number(productForm.reorder_level), is_active:true,
-      }).select('id').single()
-      if (e1) throw e1
-      if (productForm.barcode.trim() && createdProduct?.id) {
-        const { error: barcodeError } = await supabase.from('product_units').update({ barcode:productForm.barcode.trim() }).eq('product_id',createdProduct.id).eq('is_base_unit',true)
+        reorder_level:Number(productForm.reorder_level),
+      }
+      let productId = editingProduct?.id
+      if (editingProduct) {
+        const { error: updateError } = await supabase.from('products').update(productPayload).eq('id',editingProduct.id).eq('company_id',profile.company_id)
+        if (updateError) throw updateError
+      } else {
+        const { data: createdProduct, error: insertError } = await supabase.from('products').insert({...productPayload,is_active:true}).select('id').single()
+        if (insertError) throw insertError
+        productId = createdProduct.id
+      }
+      if (productForm.barcode.trim() && productId) {
+        const { error: barcodeError } = await supabase.from('product_units').update({ barcode:productForm.barcode.trim() }).eq('product_id',productId).eq('is_base_unit',true)
         if (barcodeError) throw barcodeError
       }
-      setProductModal(false); setProductForm({sku:'',name_en:'',name_so:'',category_id:'',base_unit_id:'',cost_price:'0',wholesale_price:'0',retail_price:'',reorder_level:'0',description:'',barcode:''})
-      setNotice('Badeecada si guul leh ayaa loo diiwaangeliyey.'); await loadData()
+      setProductModal(false); setEditingProduct(null); setProductForm({sku:'',name_en:'',name_so:'',category_id:'',base_unit_id:'',cost_price:'0',wholesale_price:'0',retail_price:'',reorder_level:'0',description:'',barcode:''})
+      setNotice(editingProduct ? 'Xogta badeecada waa la cusboonaysiiyey.' : 'Badeecada si guul leh ayaa loo diiwaangeliyey.'); await loadData()
     } catch (err) { setError(errorText(err)) } finally { setBusy(false) }
+  }
+
+  function openEditProduct(p: Product) {
+    setEditingProduct(p)
+    setProductForm({sku:p.sku,name_en:p.name_en,name_so:p.name_so||'',category_id:p.category_id||'',base_unit_id:p.base_unit_id,cost_price:String(p.cost_price),wholesale_price:String(p.wholesale_price),retail_price:p.retail_price===null?'':String(p.retail_price),reorder_level:String(p.reorder_level),description:p.description||'',barcode:''})
+    setProductModal(true)
+  }
+
+  async function toggleProductStatus(p: Product) {
+    if (!supabase || !profile) return
+    const action = p.is_active ? 'xirto' : 'dib u hawlgeliso'
+    if (!window.confirm('Ma hubtaa inaad rabto inaad '+action+' badeecada '+p.name_en+'?')) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const { error: e1 } = await supabase.from('products').update({is_active:!p.is_active}).eq('id',p.id).eq('company_id',profile.company_id)
+      if (e1) throw e1
+      setNotice(p.is_active?'Badeecada waa la xiray; diiwaankeeda iyo taariikhdeedu way sii jiraan.':'Badeecada dib ayaa loo hawlgeliyey.')
+      await loadData()
+    } catch(err) { setError(errorText(err)) } finally { setBusy(false) }
   }
 
   async function saveUnitConversion(e: FormEvent) {
@@ -218,7 +246,7 @@ function App() {
         {notice&&<div className="success-notice">{notice}</div>}{error&&<div className="error-notice"><AlertTriangle size={17}/>{error}<button onClick={()=>setError('')}><X size={15}/></button></div>}
         {active==='Badeecooyinka' ? <section className="panel data-panel">
           <div className="panel-heading"><div><h2>Diiwaanka Badeecooyinka</h2><p>{products.length} badeeco ayaa diiwaangashan</p></div><button className="primary-button" onClick={()=>setProductModal(true)}><Plus size={16}/> Badeeco cusub</button></div>
-          <div className="table-wrap"><table><thead><tr><th>SKU</th><th>Badeecada</th><th>Qaybta</th><th>Halbeegga</th><th>Qiimaha Cost</th><th>Jumlo</th><th>Tafaariiq</th><th>Kaydka</th><th>Xaalad</th><th></th></tr></thead><tbody>{filteredProducts.map(p=><tr key={p.id}><td className="sku-cell">{p.sku}</td><td><strong>{p.name_so||p.name_en}</strong><small>{p.name_en}</small></td><td>{p.categories?.name_so||'—'}</td><td>{p.units?.name_so||'—'}</td><td>{money(Number(p.cost_price))}</td><td>{money(Number(p.wholesale_price))}</td><td>{p.retail_price===null?'—':money(Number(p.retail_price))}</td><td>{balanceMap.get(p.id)||0}</td><td><span className={p.is_active?'status-active':'status-inactive'}>{p.is_active?'Firfircoon':'Xiran'}</span></td><td><div className="row-actions"><button className="small-action" onClick={()=>{setUnitsModal(p);setUnitForm({unit_id:"",conversion_to_base:"1",barcode:""})}}>Halbeegyo</button><button className="small-action" onClick={()=>setStockModal(p)}>Kayd geli</button></div></td></tr>)}{filteredProducts.length===0&&<tr><td colSpan={10} className="empty-cell">{search?'Wax badeeco ah lama helin.':'Weli badeeco lama diiwaangelin. Riix “Badeeco cusub” si aad u bilowdo.'}</td></tr>}</tbody></table></div>
+          <div className="table-wrap"><table><thead><tr><th>SKU</th><th>Badeecada</th><th>Qaybta</th><th>Halbeegga</th><th>Qiimaha Cost</th><th>Jumlo</th><th>Tafaariiq</th><th>Kaydka</th><th>Xaalad</th><th></th></tr></thead><tbody>{filteredProducts.map(p=><tr key={p.id}><td className="sku-cell">{p.sku}</td><td><strong>{p.name_so||p.name_en}</strong><small>{p.name_en}</small></td><td>{p.categories?.name_so||'—'}</td><td>{p.units?.name_so||'—'}</td><td>{money(Number(p.cost_price))}</td><td>{money(Number(p.wholesale_price))}</td><td>{p.retail_price===null?'—':money(Number(p.retail_price))}</td><td>{balanceMap.get(p.id)||0}</td><td><span className={p.is_active?'status-active':'status-inactive'}>{p.is_active?'Firfircoon':'Xiran'}</span></td><td><div className="row-actions"><button className="small-action" onClick={()=>openEditProduct(p)}>Wax ka beddel</button><button className="small-action" onClick={()=>toggleProductStatus(p)}>{p.is_active?"Xir":"Hawl geli"}</button><button className="small-action" onClick={()=>{setUnitsModal(p);setUnitForm({unit_id:"",conversion_to_base:"1",barcode:""})}}>Halbeegyo</button><button className="small-action" onClick={()=>setStockModal(p)}>Kayd geli</button></div></td></tr>)}{filteredProducts.length===0&&<tr><td colSpan={10} className="empty-cell">{search?'Wax badeeco ah lama helin.':'Weli badeeco lama diiwaangelin. Riix “Badeeco cusub” si aad u bilowdo.'}</td></tr>}</tbody></table></div>
         </section> : active==='Kaydka Bakhaarka' ? <div className="inventory-layout">
           <section className="panel"><div className="panel-heading"><div><h2>Heerka Kaydka</h2><p>Bakhaarka: {warehouseName}</p></div><span className="soft-chip">{balances.length} diiwaan</span></div><div className="table-wrap"><table><thead><tr><th>SKU</th><th>Badeecada</th><th>Kaydka</th><th>Heerka digniinta</th><th>Xaalad</th></tr></thead><tbody>{products.map(p=>{const qty=balanceMap.get(p.id)||0;return <tr key={p.id}><td className="sku-cell">{p.sku}</td><td>{p.name_so||p.name_en}</td><td><strong>{qty}</strong></td><td>{p.reorder_level}</td><td>{qty<=Number(p.reorder_level)?<span className="status-low">Kayd hoose</span>:<span className="status-active">Caadi</span>}</td></tr>})}{products.length===0&&<tr><td colSpan={5} className="empty-cell">Marka badeecooyin la diiwaangeliyo, kaydkoodu halkan ayuu ka muuqan doonaa.</td></tr>}</tbody></table></div></section>
           <section className="panel"><div className="panel-heading"><div><h2>Dhaqdhaqaaqyadii u dambeeyey</h2><p>Gelinta iyo sixitaanka kaydka</p></div></div>{movements.length?movements.map(m=><div className="movement-row" key={m.id}><span className={m.direction===1?'movement-in':'movement-out'}>{m.direction===1?'+':'−'}</span><div><strong>{m.products?.name_en||'Badeeco'}</strong><small>{m.movement_type} · {new Date(m.created_at).toLocaleDateString('en-GB')}</small></div><b>{m.direction===1?'+':'−'}{m.quantity}</b></div>):<div className="empty-small">Weli dhaqdhaqaaq kayd lama diiwaangelin.</div>}</section>
@@ -226,7 +254,7 @@ function App() {
         <footer>© 2026 AL-MUKHTARI GENERAL TRADING COMPANY <span>•</span> Nidaamka Gudaha</footer>
       </div>
     </main>
-    {productModal&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setProductModal(false)}}><form className="modal-card wide-modal" onSubmit={saveProduct}><div className="modal-heading"><div><h2>Badeeco cusub</h2><p>Buuxi xogta badeecada. SKU waa inuu noqdaa mid gaar ah.</p></div><button type="button" className="icon-button" onClick={()=>setProductModal(false)}><X size={18}/></button></div><div className="form-grid">
+    {productModal&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setProductModal(false)}}><form className="modal-card wide-modal" onSubmit={saveProduct}><div className="modal-heading"><div><h2>{editingProduct?"Wax ka beddel badeecada":"Badeeco cusub"}</h2><p>Buuxi xogta badeecada. SKU waa inuu noqdaa mid gaar ah.</p></div><button type="button" className="icon-button" onClick={()=>setProductModal(false)}><X size={18}/></button></div><div className="form-grid">
       <label>SKU / Koodhka badeecada *<input required value={productForm.sku} onChange={e=>setProductForm({...productForm,sku:e.target.value.toUpperCase()})} placeholder="Tusaale: SP-001"/></label>
       <label>Magaca English *<input required value={productForm.name_en} onChange={e=>setProductForm({...productForm,name_en:e.target.value})} placeholder="Black Pepper"/></label>
       <label>Magaca Soomaaliga<input value={productForm.name_so} onChange={e=>setProductForm({...productForm,name_so:e.target.value})} placeholder="Basbaas madow"/></label>
@@ -238,7 +266,7 @@ function App() {
       <label>Barcode<input value={productForm.barcode} onChange={e=>setProductForm({...productForm,barcode:e.target.value})} placeholder="Barcode (ikhtiyaari)"/></label>
       <label>Heerka digniinta kaydka *<input type="number" min="0" step="0.001" required value={productForm.reorder_level} onChange={e=>setProductForm({...productForm,reorder_level:e.target.value})}/></label>
       <label className="full-field">Faahfaahin<input value={productForm.description} onChange={e=>setProductForm({...productForm,description:e.target.value})} placeholder="Faahfaahin dheeraad ah"/></label>
-    </div><div className="modal-actions"><button type="button" className="secondary-button" onClick={()=>setProductModal(false)}>Jooji</button><button className="primary-button" disabled={busy}><Save size={16}/> {busy?'Kaydinaya…':'Kaydi badeecada'}</button></div></form></div>}
+    </div><div className="modal-actions"><button type="button" className="secondary-button" onClick={()=>{setProductModal(false);setEditingProduct(null)}}>Jooji</button><button className="primary-button" disabled={busy}><Save size={16}/> {busy?'Kaydinaya…':editingProduct?'Cusboonaysii badeecada':'Kaydi badeecada'}</button></div></form></div>}
     {unitsModal&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setUnitsModal(null)}}><form className="modal-card" onSubmit={saveUnitConversion}><div className="modal-heading"><div><h2>Halbeeg dheeraad ah</h2><p>{unitsModal.name_so||unitsModal.name_en} · {unitsModal.sku}</p></div><button type="button" className="icon-button" onClick={()=>setUnitsModal(null)}><X size={18}/></button></div>
       <label>Halbeegga cusub *<select required value={unitForm.unit_id} onChange={e=>setUnitForm({...unitForm,unit_id:e.target.value})}><option value="">Dooro halbeeg</option>{units.filter(u=>u.id!==unitsModal.base_unit_id).map(u=><option key={u.id} value={u.id}>{u.name_so||u.name_en} ({u.unit_code})</option>)}</select></label>
       <label>Immisa halbeeg aasaasi ah ayuu ka kooban yahay? *<input type="number" min="0.000001" step="0.000001" required value={unitForm.conversion_to_base} onChange={e=>setUnitForm({...unitForm,conversion_to_base:e.target.value})}/><small>Tusaale: 1 jawaan = 25 KG, geli 25 haddii KG yahay halbeegga aasaasiga ah.</small></label>
