@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Package, Warehouse, ShoppingCart, Truck, Users,
   Wallet, ChartNoAxesCombined, Settings, Bell, Search, Menu, ChevronDown,
   ArrowUpRight, Boxes, ClipboardList, CircleDollarSign, AlertTriangle,
-  Plus, RefreshCw, LogOut, X, Save, SlidersHorizontal, Barcode, LockKeyhole
+  Plus, RefreshCw, LogOut, X, Save, LockKeyhole
 } from 'lucide-react'
 import { supabase, supabaseConfigured } from './lib/supabase'
 
@@ -82,7 +82,9 @@ function App() {
   const [error, setError] = useState('')
   const [productModal, setProductModal] = useState(false)
   const [stockModal, setStockModal] = useState<Product | null>(null)
-  const [productForm, setProductForm] = useState({ sku:'', name_en:'', name_so:'', category_id:'', base_unit_id:'', cost_price:'0', wholesale_price:'0', retail_price:'', reorder_level:'0', description:'' })
+  const [unitsModal, setUnitsModal] = useState<Product | null>(null)
+  const [unitForm, setUnitForm] = useState({ unit_id:'', conversion_to_base:'1', barcode:'' })
+  const [productForm, setProductForm] = useState({ sku:'', name_en:'', name_so:'', category_id:'', base_unit_id:'', cost_price:'0', wholesale_price:'0', retail_price:'', reorder_level:'0', description:'', barcode:'' })
   const [stockForm, setStockForm] = useState({ quantity:'', direction:'1', unit_cost:'', notes:'' })
 
   useEffect(() => {
@@ -149,13 +151,31 @@ function App() {
         cost_price:Number(productForm.cost_price), wholesale_price:Number(productForm.wholesale_price),
         retail_price:productForm.retail_price === '' ? null : Number(productForm.retail_price),
         reorder_level:Number(productForm.reorder_level), is_active:true,
-      })
+      }).select('id').single()
       if (e1) throw e1
-      setProductModal(false); setProductForm({sku:'',name_en:'',name_so:'',category_id:'',base_unit_id:'',cost_price:'0',wholesale_price:'0',retail_price:'',reorder_level:'0',description:''})
+      if (productForm.barcode.trim() && e1.data?.id) {
+        const { error: barcodeError } = await supabase.from('product_units').update({ barcode:productForm.barcode.trim() }).eq('product_id',e1.data.id).eq('is_base_unit',true)
+        if (barcodeError) throw barcodeError
+      }
+      setProductModal(false); setProductForm({sku:'',name_en:'',name_so:'',category_id:'',base_unit_id:'',cost_price:'0',wholesale_price:'0',retail_price:'',reorder_level:'0',description:'',barcode:''})
       setNotice('Badeecada si guul leh ayaa loo diiwaangeliyey.'); await loadData()
     } catch (err) { setError(errorText(err)) } finally { setBusy(false) }
   }
 
+  async function saveUnitConversion(e: FormEvent) {
+    e.preventDefault(); if (!supabase || !profile || !unitsModal) return
+    setBusy(true); setError(''); setNotice('')
+    try {
+      const { error: e1 } = await supabase.from('product_units').insert({
+        company_id:profile.company_id, product_id:unitsModal.id, unit_id:unitForm.unit_id,
+        conversion_to_base:Number(unitForm.conversion_to_base), barcode:unitForm.barcode.trim() || null,
+        is_base_unit:false, is_purchase_unit:true, is_sales_unit:true, is_active:true,
+      })
+      if (e1) throw e1
+      setUnitsModal(null); setUnitForm({unit_id:'',conversion_to_base:'1',barcode:''})
+      setNotice('Halbeegga dheeraadka ah waa la diiwaangeliyey.')
+    } catch (err) { setError(errorText(err)) } finally { setBusy(false) }
+  }
   async function saveStock(e: FormEvent) {
     e.preventDefault(); if (!supabase || !profile || !stockModal) return
     const warehouseId = (await supabase.from('warehouses').select('id').eq('company_id',profile.company_id).eq('is_active',true).limit(1).single()).data?.id
@@ -198,7 +218,7 @@ function App() {
         {notice&&<div className="success-notice">{notice}</div>}{error&&<div className="error-notice"><AlertTriangle size={17}/>{error}<button onClick={()=>setError('')}><X size={15}/></button></div>}
         {active==='Badeecooyinka' ? <section className="panel data-panel">
           <div className="panel-heading"><div><h2>Diiwaanka Badeecooyinka</h2><p>{products.length} badeeco ayaa diiwaangashan</p></div><button className="primary-button" onClick={()=>setProductModal(true)}><Plus size={16}/> Badeeco cusub</button></div>
-          <div className="table-wrap"><table><thead><tr><th>SKU</th><th>Badeecada</th><th>Qaybta</th><th>Halbeegga</th><th>Qiimaha Cost</th><th>Jumlo</th><th>Tafaariiq</th><th>Kaydka</th><th>Xaalad</th><th></th></tr></thead><tbody>{filteredProducts.map(p=><tr key={p.id}><td className="sku-cell">{p.sku}</td><td><strong>{p.name_so||p.name_en}</strong><small>{p.name_en}</small></td><td>{p.categories?.name_so||'—'}</td><td>{p.units?.name_so||'—'}</td><td>{money(Number(p.cost_price))}</td><td>{money(Number(p.wholesale_price))}</td><td>{p.retail_price===null?'—':money(Number(p.retail_price))}</td><td>{balanceMap.get(p.id)||0}</td><td><span className={p.is_active?'status-active':'status-inactive'}>{p.is_active?'Firfircoon':'Xiran'}</span></td><td><button className="small-action" onClick={()=>setStockModal(p)}>Kayd geli</button></td></tr>)}{filteredProducts.length===0&&<tr><td colSpan={10} className="empty-cell">{search?'Wax badeeco ah lama helin.':'Weli badeeco lama diiwaangelin. Riix “Badeeco cusub” si aad u bilowdo.'}</td></tr>}</tbody></table></div>
+          <div className="table-wrap"><table><thead><tr><th>SKU</th><th>Badeecada</th><th>Qaybta</th><th>Halbeegga</th><th>Qiimaha Cost</th><th>Jumlo</th><th>Tafaariiq</th><th>Kaydka</th><th>Xaalad</th><th></th></tr></thead><tbody>{filteredProducts.map(p=><tr key={p.id}><td className="sku-cell">{p.sku}</td><td><strong>{p.name_so||p.name_en}</strong><small>{p.name_en}</small></td><td>{p.categories?.name_so||'—'}</td><td>{p.units?.name_so||'—'}</td><td>{money(Number(p.cost_price))}</td><td>{money(Number(p.wholesale_price))}</td><td>{p.retail_price===null?'—':money(Number(p.retail_price))}</td><td>{balanceMap.get(p.id)||0}</td><td><span className={p.is_active?'status-active':'status-inactive'}>{p.is_active?'Firfircoon':'Xiran'}</span></td><td><div className="row-actions"><button className="small-action" onClick={()=>{setUnitsModal(p);setUnitForm({unit_id:"",conversion_to_base:"1",barcode:""})}}>Halbeegyo</button><button className="small-action" onClick={()=>setStockModal(p)}>Kayd geli</button></div></td></tr>)}{filteredProducts.length===0&&<tr><td colSpan={10} className="empty-cell">{search?'Wax badeeco ah lama helin.':'Weli badeeco lama diiwaangelin. Riix “Badeeco cusub” si aad u bilowdo.'}</td></tr>}</tbody></table></div>
         </section> : active==='Kaydka Bakhaarka' ? <div className="inventory-layout">
           <section className="panel"><div className="panel-heading"><div><h2>Heerka Kaydka</h2><p>Bakhaarka: {warehouseName}</p></div><span className="soft-chip">{balances.length} diiwaan</span></div><div className="table-wrap"><table><thead><tr><th>SKU</th><th>Badeecada</th><th>Kaydka</th><th>Heerka digniinta</th><th>Xaalad</th></tr></thead><tbody>{products.map(p=>{const qty=balanceMap.get(p.id)||0;return <tr key={p.id}><td className="sku-cell">{p.sku}</td><td>{p.name_so||p.name_en}</td><td><strong>{qty}</strong></td><td>{p.reorder_level}</td><td>{qty<=Number(p.reorder_level)?<span className="status-low">Kayd hoose</span>:<span className="status-active">Caadi</span>}</td></tr>})}{products.length===0&&<tr><td colSpan={5} className="empty-cell">Marka badeecooyin la diiwaangeliyo, kaydkoodu halkan ayuu ka muuqan doonaa.</td></tr>}</tbody></table></div></section>
           <section className="panel"><div className="panel-heading"><div><h2>Dhaqdhaqaaqyadii u dambeeyey</h2><p>Gelinta iyo sixitaanka kaydka</p></div></div>{movements.length?movements.map(m=><div className="movement-row" key={m.id}><span className={m.direction===1?'movement-in':'movement-out'}>{m.direction===1?'+':'−'}</span><div><strong>{m.products?.name_en||'Badeeco'}</strong><small>{m.movement_type} · {new Date(m.created_at).toLocaleDateString('en-GB')}</small></div><b>{m.direction===1?'+':'−'}{m.quantity}</b></div>):<div className="empty-small">Weli dhaqdhaqaaq kayd lama diiwaangelin.</div>}</section>
@@ -215,9 +235,14 @@ function App() {
       <label>Qiimaha Cost (USD) *<input type="number" min="0" step="0.01" required value={productForm.cost_price} onChange={e=>setProductForm({...productForm,cost_price:e.target.value})}/></label>
       <label>Qiimaha Jumlada (USD) *<input type="number" min="0" step="0.01" required value={productForm.wholesale_price} onChange={e=>setProductForm({...productForm,wholesale_price:e.target.value})}/></label>
       <label>Qiimaha Tafaariiqda (USD)<input type="number" min="0" step="0.01" value={productForm.retail_price} onChange={e=>setProductForm({...productForm,retail_price:e.target.value})}/></label>
+      <label>Barcode<input value={productForm.barcode} onChange={e=>setProductForm({...productForm,barcode:e.target.value})} placeholder="Barcode (ikhtiyaari)"/></label>
       <label>Heerka digniinta kaydka *<input type="number" min="0" step="0.001" required value={productForm.reorder_level} onChange={e=>setProductForm({...productForm,reorder_level:e.target.value})}/></label>
       <label className="full-field">Faahfaahin<input value={productForm.description} onChange={e=>setProductForm({...productForm,description:e.target.value})} placeholder="Faahfaahin dheeraad ah"/></label>
     </div><div className="modal-actions"><button type="button" className="secondary-button" onClick={()=>setProductModal(false)}>Jooji</button><button className="primary-button" disabled={busy}><Save size={16}/> {busy?'Kaydinaya…':'Kaydi badeecada'}</button></div></form></div>}
+    {unitsModal&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setUnitsModal(null)}}><form className="modal-card" onSubmit={saveUnitConversion}><div className="modal-heading"><div><h2>Halbeeg dheeraad ah</h2><p>{unitsModal.name_so||unitsModal.name_en} · {unitsModal.sku}</p></div><button type="button" className="icon-button" onClick={()=>setUnitsModal(null)}><X size={18}/></button></div>
+      <label>Halbeegga cusub *<select required value={unitForm.unit_id} onChange={e=>setUnitForm({...unitForm,unit_id:e.target.value})}><option value="">Dooro halbeeg</option>{units.filter(u=>u.id!==unitsModal.base_unit_id).map(u=><option key={u.id} value={u.id}>{u.name_so||u.name_en} ({u.unit_code})</option>)}</select></label>
+      <label>Immisa halbeeg aasaasi ah ayuu ka kooban yahay? *<input type="number" min="0.000001" step="0.000001" required value={unitForm.conversion_to_base} onChange={e=>setUnitForm({...unitForm,conversion_to_base:e.target.value})}/><small>Tusaale: 1 jawaan = 25 KG, geli 25 haddii KG yahay halbeegga aasaasiga ah.</small></label>
+      <label>Barcode<input value={unitForm.barcode} onChange={e=>setUnitForm({...unitForm,barcode:e.target.value})} placeholder="Ikhtiyaari"/></label><div className="modal-actions"><button type="button" className="secondary-button" onClick={()=>setUnitsModal(null)}>Jooji</button><button className="primary-button" disabled={busy}><Save size={16}/> Kaydi halbeegga</button></div></form></div>}
     {stockModal&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setStockModal(null)}}><form className="modal-card" onSubmit={saveStock}><div className="modal-heading"><div><h2>Dhaqdhaqaaqa kaydka</h2><p>{stockModal.name_so||stockModal.name_en} · {stockModal.sku}</p></div><button type="button" className="icon-button" onClick={()=>setStockModal(null)}><X size={18}/></button></div><label>Nooca dhaqdhaqaaqa<select value={stockForm.direction} onChange={e=>setStockForm({...stockForm,direction:e.target.value})}><option value="1">Kayd soo galaya / Opening</option><option value="-1">Kayd baxaya / Adjustment</option></select></label><label>Tirada *<input type="number" min="0.001" step="0.001" required value={stockForm.quantity} onChange={e=>setStockForm({...stockForm,quantity:e.target.value})}/></label><label>Qiimaha halkii halbeeg (USD)<input type="number" min="0" step="0.01" value={stockForm.unit_cost} onChange={e=>setStockForm({...stockForm,unit_cost:e.target.value})}/></label><label>Sababta / Faahfaahin<input required value={stockForm.notes} onChange={e=>setStockForm({...stockForm,notes:e.target.value})} placeholder="Tusaale: Opening stock"/></label><div className="modal-actions"><button type="button" className="secondary-button" onClick={()=>setStockModal(null)}>Jooji</button><button className="primary-button" disabled={busy}><Save size={16}/> {busy?'Kaydinaya…':'Diiwaangeli kaydka'}</button></div></form></div>}
   </div>
 }
