@@ -3,8 +3,8 @@ import type { FormEvent } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import {
   LayoutDashboard, Package, Warehouse, ShoppingCart, Truck, Users,
-  Wallet, ChartNoAxesCombined, Settings, Bell, Search, Menu, ChevronDown,
-  ArrowUpRight, Boxes, ClipboardList, CircleDollarSign, AlertTriangle,
+  Wallet, ChartNoAxesCombined, Settings, Bell, Search, Menu,
+  ArrowUpRight, Boxes, ClipboardList, AlertTriangle,
   Plus, RefreshCw, LogOut, X, Save, LockKeyhole
 } from 'lucide-react'
 import { supabase, supabaseConfigured } from './lib/supabase'
