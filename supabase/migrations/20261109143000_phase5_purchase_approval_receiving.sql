@@ -68,4 +68,31 @@ $$;
 
 revoke all on function public.receive_purchase_item(uuid,numeric,text) from public,anon;
 grant execute on function public.receive_purchase_item(uuid,numeric,text) to authenticated;
+
+-- Finance staff can view suppliers and record supplier settlements.
+insert into public.role_permissions(role_id,permission_id)
+select r.id,p.id from public.roles r cross join public.permissions p
+where r.role_key='finance_manager' and p.permission_key='suppliers.view'
+on conflict do nothing;
+
+drop policy if exists supplier_payments_insert_permission on public.supplier_payments;
+create policy supplier_payments_insert_permission on public.supplier_payments
+for insert to authenticated
+with check (company_id=private.current_profile_company()
+ and (private.has_permission('suppliers.manage') or private.has_permission('finance.manage')));
+
+drop policy if exists supplier_payments_update_permission on public.supplier_payments;
+create policy supplier_payments_update_permission on public.supplier_payments
+for update to authenticated
+using (company_id=private.current_profile_company()
+ and (private.has_permission('suppliers.manage') or private.has_permission('finance.manage')))
+with check (company_id=private.current_profile_company()
+ and (private.has_permission('suppliers.manage') or private.has_permission('finance.manage')));
+
+drop policy if exists supplier_payments_delete_permission on public.supplier_payments;
+create policy supplier_payments_delete_permission on public.supplier_payments
+for delete to authenticated
+using (company_id=private.current_profile_company()
+ and (private.has_permission('suppliers.manage') or private.has_permission('finance.manage')));
+
 notify pgrst, 'reload schema';
