@@ -75,7 +75,7 @@ export default function SuppliersPurchasing({companyId,userId,mode}:Props){
   if(!warehouseId){setError('Bakhaarka firfircoon lama helin.');return}
   if(!purchaseForm.supplier_id||!purchaseForm.product_id){setError('Dooro alaab-qeybiye iyo badeeco.');return}
   setBusy(true);setError('');setNotice('')
-  const number='PO-'+new Date().toISOString().slice(0,10).replaceAll('-','')+'-'+Math.floor(1000+Math.random()*9000)
+  const number='PO-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.floor(1000+Math.random()*9000)
   try{
    const {data:po,error:e1}=await supabase.from('purchase_orders').insert({company_id:companyId,supplier_id:purchaseForm.supplier_id,warehouse_id:warehouseId,purchase_number:number,status:'draft',order_date:new Date().toISOString().slice(0,10),expected_date:purchaseForm.expected_date||null,currency_code:'USD',exchange_rate:1,subtotal,tax_amount:tax,total_amount:total,notes:purchaseForm.notes.trim()||null,created_by:userId}).select('id').single()
    if(e1)throw e1
@@ -115,7 +115,7 @@ export default function SuppliersPurchasing({companyId,userId,mode}:Props){
  async function savePayment(e:React.FormEvent){
   e.preventDefault();if(!supabase||!paymentModal)return
   setBusy(true);setError('');setNotice('')
-  const paymentNumber='SP-'+new Date().toISOString().slice(0,10).replaceAll('-','')+'-'+Math.floor(1000+Math.random()*9000)
+  const paymentNumber='SP-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.floor(1000+Math.random()*9000)
   try{
    const {error:e}=await supabase.from('supplier_payments').insert({company_id:companyId,supplier_id:paymentModal.id,payment_number:paymentNumber,payment_date:paymentForm.payment_date,amount:Number(paymentForm.amount),currency_code:'USD',exchange_rate:1,payment_method:paymentForm.payment_method,reference_number:paymentForm.reference_number.trim()||null,created_by:userId})
    if(e)throw e
