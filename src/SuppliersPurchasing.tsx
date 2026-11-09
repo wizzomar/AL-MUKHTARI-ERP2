@@ -6,7 +6,8 @@ type Supplier = { id:string; supplier_code:string; name:string; phone:string|nul
 type Product = { id:string; sku:string; name_en:string; name_so:string|null; cost_price:number }
 type PurchaseLine = {id:string;quantity:number;received_quantity:number;unit_cost:number;products?:{name_en:string;sku:string}|null}
 type Purchase = { id:string; purchase_number:string; status:string; order_date:string; expected_date:string|null; currency_code:string; subtotal:number; tax_amount:number; total_amount:number; supplier_id:string; suppliers?:{name:string}|null; purchase_items?:PurchaseLine[] }
-type Approval = {id:string;entity_id:string;status:string;reason:string|null;requested_data:Record<string,unknown>;created_at:string;approval_decisions:{approver_role:string;decision:string}[]}\ntype Payment = { id:string; supplier_id:string; amount:number; payment_date:string; currency_code:string; payment_method:string; payment_number:string }
+type Approval = {id:string;entity_id:string;status:string;reason:string|null;requested_data:Record<string,unknown>;created_at:string;approval_decisions:{approver_role:string;decision:string}[]}
+type Payment = { id:string; supplier_id:string; amount:number; payment_date:string; currency_code:string; payment_method:string; payment_number:string }
 type Props = { companyId:string; userId:string; mode:'suppliers'|'purchases' }
 
 const fmt=(n:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(n||0))
@@ -16,7 +17,8 @@ export default function SuppliersPurchasing({companyId,userId,mode}:Props){
  const [suppliers,setSuppliers]=useState<Supplier[]>([])
  const [products,setProducts]=useState<Product[]>([])
  const [purchases,setPurchases]=useState<Purchase[]>([])
- const [payments,setPayments]=useState<Payment[]>([])\n const [approvals,setApprovals]=useState<Approval[]>([])
+ const [payments,setPayments]=useState<Payment[]>([])
+ const [approvals,setApprovals]=useState<Approval[]>([])
  const [warehouseId,setWarehouseId]=useState('')
  const [busy,setBusy]=useState(false)
  const [error,setError]=useState('')
@@ -39,10 +41,11 @@ export default function SuppliersPurchasing({companyId,userId,mode}:Props){
     supabase.from('products').select('id,sku,name_en,name_so,cost_price').eq('company_id',companyId).eq('is_active',true).order('name_en'),
     supabase.from('purchase_orders').select('id,purchase_number,status,order_date,expected_date,currency_code,subtotal,tax_amount,total_amount,supplier_id,suppliers(name),purchase_items(id,quantity,received_quantity,unit_cost,products(name_en,sku))').eq('company_id',companyId).order('created_at',{ascending:false}).limit(100),
     supabase.from('supplier_payments').select('id,supplier_id,amount,payment_date,currency_code,payment_method,payment_number').eq('company_id',companyId).order('payment_date',{ascending:false}),
-    supabase.from('warehouses').select('id').eq('company_id',companyId).eq('is_active',true).limit(1).single(),\n    supabase.from('approval_requests').select('id,entity_id,status,reason,requested_data,created_at,approval_decisions(approver_role,decision)').eq('company_id',companyId).eq('entity_table','purchase_orders').in('status',['pending','partially_approved']).order('created_at',{ascending:false})
+    supabase.from('warehouses').select('id').eq('company_id',companyId).eq('is_active',true).limit(1).single(),
+    supabase.from('approval_requests').select('id,entity_id,status,reason,requested_data,created_at,approval_decisions(approver_role,decision)').eq('company_id',companyId).eq('entity_table','purchase_orders').in('status',['pending','partially_approved']).order('created_at',{ascending:false})
    ])
    if(s.error)throw s.error;if(p.error)throw p.error;if(o.error)throw o.error;if(sp.error)throw sp.error
-   setSuppliers((s.data||[]) as Supplier[]);setProducts((p.data||[]) as Product[]);setPurchases((o.data||[]) as unknown as Purchase[]);setPayments((sp.data||[]) as Payment[])
+   setSuppliers((s.data||[]) as Supplier[]);setProducts((p.data||[]) as Product[]);setPurchases((o.data||[]) as unknown as Purchase[]);setPayments((sp.data||[]) as Payment[]);setApprovals((ar.data||[]) as unknown as Approval[])
    if(w.data)setWarehouseId(w.data.id)
   }catch(e){setError(err(e))}
   finally{setBusy(false)}
