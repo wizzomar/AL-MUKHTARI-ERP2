@@ -7,7 +7,8 @@ import {
   ArrowUpRight, Boxes, ClipboardList, AlertTriangle,
   Plus, RefreshCw, LogOut, X, Save, LockKeyhole
 } from 'lucide-react'
-import { supabase, supabaseConfigured } from './lib/supabase'\nimport SuppliersPurchasing from './SuppliersPurchasing'
+import { supabase, supabaseConfigured } from './lib/supabase'
+import SuppliersPurchasing from './SuppliersPurchasing'
 
 type Profile = { id: string; company_id: string; role_id: string; full_name: string; is_active: boolean; roles?: { name_en: string; name_so: string; role_key: string } | null }
 type Category = { id: string; name_en: string; name_so: string; code: string }
