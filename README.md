@@ -3,32 +3,29 @@
 ERP system for **AL-MUKHTARI GENERAL TRADING COMPANY**.
 
 ## Technology
-- React 18 + TypeScript + Vite
+- React + TypeScript + Vite
 - Supabase PostgreSQL + Auth (RLS protected)
 - GitHub source control
-- Vercel hosting (deployment is a later project phase)
+- Vercel hosting
 
-## Current phase
-**Phase 4 — Products & Inventory** is in progress.
+## Current project status
+- Phase 1 — Requirements & Architecture: completed and approved.
+- Phase 2 — Database Design & Security: implemented.
+- Phase 3 — Company Setup, Users & Permissions: implemented.
+- Phase 4 — Products & Inventory: frontend and database foundations implemented; browser end-to-end testing pending.
+- Phase 5 — Purchasing & Suppliers: frontend and database functions implemented; browser end-to-end testing and user approval pending.
+- Phase 6 onward: not started.
 
-Implemented in the current frontend:
-- Email/password sign-in through Supabase Auth
-- Profile and active-account check
-- Product registration and product listing
-- Category and base-unit selection
-- USD cost, wholesale and retail prices
-- Barcode on the base unit
-- Alternate unit conversion setup
-- Inventory balances and stock movement entry through the database RPC
-- Low-stock indicators and recent movement list
-- Somali-first responsive dashboard
+A phase is not considered approved until its required runtime tests pass and the user approves moving forward.
 
 ## Supabase environment
-Copy `.env.example` to `.env.local` for local development, then set:
+Set these Vercel Production environment variables (and Preview/Development if needed):
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 
-The publishable key is intended for browser use. **Never put a Supabase service-role or secret key in frontend environment variables.**
+For local development, copy `.env.example` to `.env.local`.
+
+The publishable key is intended for browser use. **Never put a Supabase service-role or secret key in frontend environment variables or source control.** Database access must remain protected by Row Level Security.
 
 ## Company configuration
 - Country: Somalia
@@ -51,10 +48,3 @@ npm run dev
 ```bash
 npm run build
 ```
-
-## Remaining before Phase 4 sign-off
-- Add edit/archive product workflows and full alternate-unit listing/editing
-- Test sign-in and role permissions in a real browser session
-- Verify product and stock workflows end-to-end against the connected Supabase project
-- Resolve the Supabase Auth leaked-password-protection warning before production
-- Run CI build and review the build result
