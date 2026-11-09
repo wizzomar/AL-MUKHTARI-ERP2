@@ -6,7 +6,7 @@ type Supplier = { id:string; supplier_code:string; name:string; phone:string|nul
 type Product = { id:string; sku:string; name_en:string; name_so:string|null; cost_price:number }
 type PurchaseLine = {id:string;quantity:number;received_quantity:number;unit_cost:number;products?:{name_en:string;sku:string}|null}
 type Purchase = { id:string; purchase_number:string; status:string; order_date:string; expected_date:string|null; currency_code:string; subtotal:number; tax_amount:number; total_amount:number; supplier_id:string; suppliers?:{name:string}|null; purchase_items?:PurchaseLine[] }
-type Payment = { id:string; supplier_id:string; amount:number; payment_date:string; currency_code:string; payment_method:string; payment_number:string }
+type Approval = {id:string;entity_id:string;status:string;reason:string|null;requested_data:Record<string,unknown>;created_at:string;approval_decisions:{approver_role:string;decision:string}[]}\ntype Payment = { id:string; supplier_id:string; amount:number; payment_date:string; currency_code:string; payment_method:string; payment_number:string }
 type Props = { companyId:string; userId:string; mode:'suppliers'|'purchases' }
 
 const fmt=(n:number)=>new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(Number(n||0))
@@ -16,7 +16,7 @@ export default function SuppliersPurchasing({companyId,userId,mode}:Props){
  const [suppliers,setSuppliers]=useState<Supplier[]>([])
  const [products,setProducts]=useState<Product[]>([])
  const [purchases,setPurchases]=useState<Purchase[]>([])
- const [payments,setPayments]=useState<Payment[]>([])
+ const [payments,setPayments]=useState<Payment[]>([])\n const [approvals,setApprovals]=useState<Approval[]>([])
  const [warehouseId,setWarehouseId]=useState('')
  const [busy,setBusy]=useState(false)
  const [error,setError]=useState('')
@@ -34,12 +34,12 @@ export default function SuppliersPurchasing({companyId,userId,mode}:Props){
   if(!supabase)return
   setBusy(true);setError('')
   try{
-   const [s,p,o,sp,w]=await Promise.all([
+   const [s,p,o,sp,w,ar]=await Promise.all([
     supabase.from('suppliers').select('id,supplier_code,name,phone,email,address,country_code,opening_balance,currency_code,is_active').eq('company_id',companyId).order('name'),
     supabase.from('products').select('id,sku,name_en,name_so,cost_price').eq('company_id',companyId).eq('is_active',true).order('name_en'),
     supabase.from('purchase_orders').select('id,purchase_number,status,order_date,expected_date,currency_code,subtotal,tax_amount,total_amount,supplier_id,suppliers(name),purchase_items(id,quantity,received_quantity,unit_cost,products(name_en,sku))').eq('company_id',companyId).order('created_at',{ascending:false}).limit(100),
     supabase.from('supplier_payments').select('id,supplier_id,amount,payment_date,currency_code,payment_method,payment_number').eq('company_id',companyId).order('payment_date',{ascending:false}),
-    supabase.from('warehouses').select('id').eq('company_id',companyId).eq('is_active',true).limit(1).single()
+    supabase.from('warehouses').select('id').eq('company_id',companyId).eq('is_active',true).limit(1).single(),\n    supabase.from('approval_requests').select('id,entity_id,status,reason,requested_data,created_at,approval_decisions(approver_role,decision)').eq('company_id',companyId).eq('entity_table','purchase_orders').in('status',['pending','partially_approved']).order('created_at',{ascending:false})
    ])
    if(s.error)throw s.error;if(p.error)throw p.error;if(o.error)throw o.error;if(sp.error)throw sp.error
    setSuppliers((s.data||[]) as Supplier[]);setProducts((p.data||[]) as Product[]);setPurchases((o.data||[]) as unknown as Purchase[]);setPayments((sp.data||[]) as Payment[])
@@ -92,6 +92,14 @@ export default function SuppliersPurchasing({companyId,userId,mode}:Props){
    setNotice('Dalabka waxaa loo gudbiyey ansixinta Owner iyo General Manager.');await load()
   }catch(e){setError(err(e))}finally{setBusy(false)}
  }
+ async function decideApproval(id:string,decision:'approved'|'rejected'){
+  if(!supabase)return
+  const message=decision==='approved'?'Ma ansixinaysaa dalabkan?':'Ma diidaysaa dalabkan?'
+  if(!window.confirm(message))return
+  setBusy(true);setError('');setNotice('')
+  try{const {error:e}=await supabase.rpc('decide_approval',{p_request_id:id,p_decision:decision,p_comments:null});if(e)throw e;setNotice(decision==='approved'?'Go’aanka ansixinta waa la diiwaangeliyey. Haddii labada maamule ansixiyaan, dalabku wuu furmayaa.':'Dalabka waa la diiday.');await load()}
+  catch(e){setError(err(e))}finally{setBusy(false)}
+ }
  async function receiveItem(e:React.FormEvent){
   e.preventDefault();if(!supabase||!receiveModal)return
   setBusy(true);setError('');setNotice('')
@@ -120,6 +128,7 @@ export default function SuppliersPurchasing({companyId,userId,mode}:Props){
    <section className="panel data-panel"><div className="panel-heading"><div><h2>Diiwaanka Alaab-qeybiyeyaasha</h2><p>{suppliers.length} diiwaan · USD</p></div></div><div className="table-wrap"><table><thead><tr><th>Koodh</th><th>Magaca</th><th>Dal</th><th>Xiriir</th><th>Iibsiga</th><th>Lacag la bixiyey</th><th>Haraaga</th><th>Ficil</th></tr></thead><tbody>{supplierTotals.map(s=><tr key={s.id}><td className="sku-cell">{s.supplier_code}</td><td><strong>{s.name}</strong><small>{s.email||'—'}</small></td><td>{s.country_code||'—'}</td><td>{s.phone||'—'}</td><td>{fmt(s.purchaseTotal)}</td><td>{fmt(s.paymentTotal)}</td><td><strong>{fmt(s.balance)}</strong></td><td><button className="small-action" onClick={()=>setPaymentModal(s)}>Diiwaangeli lacag-bixin</button></td></tr>)}{!suppliers.length&&<tr><td colSpan={8} className="empty-cell">Weli alaab-qeybiye lama diiwaangelin.</td></tr>}</tbody></table></div></section>
   </>:<>
    <div className="module-stats"><article className="stat-card"><div className="stat-top"><span>Dalabyada</span><ShoppingCart size={18}/></div><strong>{purchases.length}</strong><small>Dhammaan dalabyada</small></article><article className="stat-card"><div className="stat-top"><span>Qiimaha Iibsiga</span><Wallet size={18}/></div><strong>{fmt(purchases.filter(p=>p.status!=='cancelled').reduce((n,p)=>n+Number(p.total_amount),0))}</strong><small>USD</small></article><article className="stat-card"><div className="stat-top"><span>Sugaya Ansixin</span><Send size={18}/></div><strong>{purchases.filter(p=>p.status==='submitted').length}</strong><small>Dalabyo la gudbiyey</small></article></div>
+   <section className="panel data-panel"><div className="panel-heading"><div><h2>Ansixinta Dalabyada</h2><p>Dalabyada sugaya go'aanka Owner iyo General Manager.</p></div><span className="soft-chip">{approvals.length} sugaya</span></div>{approvals.length?approvals.map(a=>{const owner=a.approval_decisions?.some(d=>d.approver_role==='owner'&&d.decision==='approved');const gm=a.approval_decisions?.some(d=>d.approver_role==='general_manager'&&d.decision==='approved');return <div className="approval-row" key={a.id}><div><strong>{String(a.requested_data?.purchase_number||a.entity_id)}</strong><small>{a.reason||'Dalab iibsiga'} · {new Date(a.created_at).toLocaleDateString('en-GB')}</small><small>Owner: {owner?'La ansixiyey':'Sugaya'} · General Manager: {gm?'La ansixiyey':'Sugaya'}</small></div><div className="module-actions"><button className="small-action" disabled={busy} onClick={()=>void decideApproval(a.id,'approved')}>Ansixi</button><button className="small-action danger-action" disabled={busy} onClick={()=>void decideApproval(a.id,'rejected')}>Diid</button></div></div>}) : <div className="empty-small">Ma jiraan dalabyo sugaya ansixin, ama koontadani ma laha rukhsadda aragtida ansixinta.</div>}</section>
    <section className="panel data-panel"><div className="panel-heading"><div><h2>Diiwaanka Dalabyada Iibsiga</h2><p>Dalab kasta wuxuu ku xiran yahay alaab-qeybiye iyo bakhaarka dhexe.</p></div></div><div className="table-wrap"><table><thead><tr><th>Lambarka</th><th>Alaab-qeybiye</th><th>Taariikh</th><th>Wadarta</th><th>Xaalad</th><th>Ficil</th></tr></thead><tbody>{purchases.map(p=><tr key={p.id}><td className="sku-cell">{p.purchase_number}</td><td>{p.suppliers?.name||suppliers.find(s=>s.id===p.supplier_id)?.name||'—'}</td><td>{p.order_date}</td><td><strong>{fmt(Number(p.total_amount))}</strong></td><td><span className={p.status==='approved'||p.status==='received'?'status-active':p.status==='cancelled'?'status-inactive':'status-low'}>{statusLabel(p.status)}</span></td><td>{p.status==='draft'?<button className="small-action" onClick={()=>void submitPurchase(p)} disabled={busy}><Send size={13}/> Gudbi</button>:p.status==='approved'||p.status==='part_received'?<div className="purchase-line-actions">{(p.purchase_items||[]).map(i=><button key={i.id} className="small-action" disabled={busy||Number(i.received_quantity)>=Number(i.quantity)} onClick={()=>{setReceiveModal({purchase:p,item:i});setReceiveQty(String(Number(i.quantity)-Number(i.received_quantity)))}}>Hel: {i.products?.name_en||i.products?.sku||'Badeeco'} ({i.received_quantity}/{i.quantity})</button>)}</div>:<span className="empty-small">—</span>}</td></tr>)}{!purchases.length&&<tr><td colSpan={6} className="empty-cell">Weli dalab iibsiga lama diiwaangelin.</td></tr>}</tbody></table></div></section>
   </>}
   {supplierModal&&<div className="modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSupplierModal(false)}}><form className="modal-card wide-modal" onSubmit={saveSupplier}><div className="modal-heading"><div><h2>Alaab-qeybiye cusub</h2><p>Diiwaangeli supplier gudaha ama dibadda.</p></div><button type="button" className="icon-button" onClick={()=>setSupplierModal(false)}><X size={18}/></button></div><div className="form-grid">
