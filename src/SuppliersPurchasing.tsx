@@ -4,7 +4,8 @@ import { supabase } from './lib/supabase'
 
 type Supplier = { id:string; supplier_code:string; name:string; phone:string|null; email:string|null; address:string|null; country_code:string|null; opening_balance:number; currency_code:string; is_active:boolean }
 type Product = { id:string; sku:string; name_en:string; name_so:string|null; cost_price:number }
-type PurchaseLine = {id:string;quantity:number;received_quantity:number;unit_cost:number;products?:{name_en:string;sku:string}|null}\ntype Purchase = { id:string; purchase_number:string; status:string; order_date:string; expected_date:string|null; currency_code:string; subtotal:number; tax_amount:number; total_amount:number; supplier_id:string; suppliers?:{name:string}|null; purchase_items?:PurchaseLine[] }
+type PurchaseLine = {id:string;quantity:number;received_quantity:number;unit_cost:number;products?:{name_en:string;sku:string}|null}
+type Purchase = { id:string; purchase_number:string; status:string; order_date:string; expected_date:string|null; currency_code:string; subtotal:number; tax_amount:number; total_amount:number; supplier_id:string; suppliers?:{name:string}|null; purchase_items?:PurchaseLine[] }
 type Payment = { id:string; supplier_id:string; amount:number; payment_date:string; currency_code:string; payment_method:string; payment_number:string }
 type Props = { companyId:string; userId:string; mode:'suppliers'|'purchases' }
 
@@ -22,7 +23,9 @@ export default function SuppliersPurchasing({companyId,userId,mode}:Props){
  const [notice,setNotice]=useState('')
  const [supplierModal,setSupplierModal]=useState(false)
  const [purchaseModal,setPurchaseModal]=useState(false)
- const [paymentModal,setPaymentModal]=useState<Supplier|null>(null)\n const [receiveModal,setReceiveModal]=useState<{purchase:Purchase;item:PurchaseLine}|null>(null)\n const [receiveQty,setReceiveQty]=useState('')
+ const [paymentModal,setPaymentModal]=useState<Supplier|null>(null)
+ const [receiveModal,setReceiveModal]=useState<{purchase:Purchase;item:PurchaseLine}|null>(null)
+ const [receiveQty,setReceiveQty]=useState('')
  const [supplierForm,setSupplierForm]=useState({supplier_code:'',name:'',phone:'',email:'',address:'',country_code:'AE',opening_balance:'0'})
  const [purchaseForm,setPurchaseForm]=useState({supplier_id:'',product_id:'',quantity:'',unit_cost:'',tax_rate:'5',expected_date:'',notes:''})
  const [paymentForm,setPaymentForm]=useState({amount:'',payment_method:'bank_transfer',reference_number:'',payment_date:new Date().toISOString().slice(0,10)})
