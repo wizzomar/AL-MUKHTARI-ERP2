@@ -67,6 +67,7 @@ function Login({ onLogin }: { onLogin: (email: string, password: string) => Prom
 function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [profileLoading, setProfileLoading] = useState(true)
   const [active, setActive] = useState('Dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [search, setSearch] = useState('')
@@ -89,23 +90,44 @@ function App() {
   const [stockForm, setStockForm] = useState({ quantity:'', direction:'1', unit_cost:'', notes:'' })
 
   useEffect(() => {
-    if (!supabase) return
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    if (!supabase) { setProfileLoading(false); return }
+    let alive = true
+    supabase.auth.getSession()
+      .then(({ data, error: authError }) => {
+        if (!alive) return
+        if (authError) setError(authError.message)
+        setSession(data.session)
+      })
+      .catch((err) => { if (alive) setError(errorText(err)) })
+      .finally(() => { if (alive) setProfileLoading(false) })
     const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => setSession(next))
-    return () => listener.subscription.unsubscribe()
+    return () => { alive = false; listener.subscription.unsubscribe() }
   }, [])
 
   useEffect(() => {
-    if (!session || !supabase) { setProfile(null); return }
-    let alive = true
-    async function loadProfile() {
-      const { data, error: e } = await supabase!.from('profiles').select('id,company_id,role_id,full_name,is_active,roles(name_en,name_so,role_key)').eq('id', session!.user.id).maybeSingle()
-      if (!alive) return
-      if (e) { setError(e.message); return }
-      if (!data || !data.is_active) { setError('Account-kan lama hawlgelin ama profile lama helin. La xiriir Owner-ka.'); await supabase!.auth.signOut(); return }
-      setProfile(data as unknown as Profile)
+    if (!session || !supabase) {
+      setProfile(null)
+      setProfileLoading(false)
+      return
     }
-    loadProfile()
+    let alive = true
+    setProfile(null)
+    setProfileLoading(true)
+    setError('')
+    async function loadProfile() {
+      try {
+        const { data, error: e } = await supabase!.from('profiles').select('id,company_id,role_id,full_name,is_active,roles(name_en,name_so,role_key)').eq('id', session!.user.id).maybeSingle()
+        if (!alive) return
+        if (e) throw e
+        if (!data || !data.is_active) throw new Error('Account-kan lama hawlgelin ama profile lama helin. La xiriir Owner-ka.')
+        setProfile(data as unknown as Profile)
+      } catch (err) {
+        if (alive) setError(errorText(err))
+      } finally {
+        if (alive) setProfileLoading(false)
+      }
+    }
+    void loadProfile()
     return () => { alive = false }
   }, [session])
 
@@ -235,8 +257,9 @@ function App() {
   const stockValue = products.reduce((sum,p)=>sum+(balanceMap.get(p.id)||0)*Number(p.cost_price),0)
 
   if (!supabaseConfigured || !supabase) return <div className="setup-screen"><div className="setup-card"><div className="brand-mark">AM</div><h1>Supabase setup ayaa loo baahan yahay</h1><p>Ku dar labada environment variables ee Vercel ama faylka .env.local si app-ku ugu xirmo database-ka.</p><code>VITE_SUPABASE_URL</code><code>VITE_SUPABASE_PUBLISHABLE_KEY</code><small>Ha gelin service_role key gudaha frontend-ka.</small></div></div>
+  if (profileLoading) return <div className="loading-screen"><div className="spinner"/><span>Hubinta rukhsadda account-ka…</span></div>
   if (!session) return <Login onLogin={login}/>
-  if (!profile) return <div className="loading-screen"><div className="spinner"/><span>Hubinta rukhsadda account-ka…</span>{error && <p className="form-error">{error}</p>}</div>
+  if (!profile) return <div className="loading-screen"><h2>Gelitaanka lama dhammeystirin</h2><p className="form-error">{error || 'Profile-ka shaqaalaha lama helin.'}</p><div className="loading-actions"><button className="primary-button" onClick={() => window.location.reload()}>Dib u tijaabi</button><button className="secondary-button" onClick={logout}>Ka bax oo dib u gal</button></div></div>
 
   return <div className="app-shell">
     <aside className={sidebarOpen ? 'sidebar' : 'sidebar collapsed'}>
