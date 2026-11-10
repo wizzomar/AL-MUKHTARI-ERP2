@@ -74,14 +74,14 @@ export default function SuppliersPurchasing({companyId,userId,mode}:Props){
   e.preventDefault();if(!supabase)return
   if(!warehouseId){setError('Bakhaarka firfircoon lama helin.');return}
   if(!purchaseForm.supplier_id||!purchaseForm.product_id){setError('Dooro alaab-qeybiye iyo badeeco.');return}
+  const quantity=Number(purchaseForm.quantity), unitCost=Number(purchaseForm.unit_cost), taxRate=Number(purchaseForm.tax_rate)
+  if(!Number.isFinite(quantity)||quantity<=0||!Number.isFinite(unitCost)||unitCost<0||!Number.isFinite(taxRate)||taxRate<0||taxRate>100){setError('Hubi tirada, qiimaha iyo VAT-ka.');return}
   setBusy(true);setError('');setNotice('')
-  const number='PO-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+Math.floor(1000+Math.random()*9000)
   try{
-   const {data:po,error:e1}=await supabase.from('purchase_orders').insert({company_id:companyId,supplier_id:purchaseForm.supplier_id,warehouse_id:warehouseId,purchase_number:number,status:'draft',order_date:new Date().toISOString().slice(0,10),expected_date:purchaseForm.expected_date||null,currency_code:'USD',exchange_rate:1,subtotal,tax_amount:tax,total_amount:total,notes:purchaseForm.notes.trim()||null,created_by:userId}).select('id').single()
+   const {data:purchaseId,error:e1}=await supabase.rpc('create_purchase_draft',{p_company_id:companyId,p_supplier_id:purchaseForm.supplier_id,p_warehouse_id:warehouseId,p_product_id:purchaseForm.product_id,p_quantity:quantity,p_unit_cost:unitCost,p_tax_rate:taxRate,p_expected_date:purchaseForm.expected_date||null,p_notes:purchaseForm.notes.trim()||null})
    if(e1)throw e1
-   const {error:e2}=await supabase.from('purchase_items').insert({purchase_order_id:po.id,product_id:purchaseForm.product_id,quantity:Number(purchaseForm.quantity),unit_cost:Number(purchaseForm.unit_cost),tax_rate:Number(purchaseForm.tax_rate),line_total:total,received_quantity:0})
-   if(e2){await supabase.from('purchase_orders').delete().eq('id',po.id);throw e2}
-   setPurchaseModal(false);setPurchaseForm({supplier_id:'',product_id:'',quantity:'',unit_cost:'',tax_rate:'5',expected_date:'',notes:''});setNotice('Dalabka iibsiga draft ahaan ayaa loo kaydiyey.');await load()
+   if(!purchaseId)throw new Error('Dalabka lama xaqiijin inuu kaydsamay.')
+   setPurchaseModal(false);setPurchaseForm({supplier_id:'',product_id:'',quantity:'',unit_cost:'',tax_rate:'5',expected_date:'',notes:''});setNotice('Dalabka iibsiga '+String(purchaseId).slice(0,8)+' qabyo ahaan ayaa loo kaydiyey.');await load()
   }catch(e){setError(err(e))}finally{setBusy(false)}
  }
  async function submitPurchase(p:Purchase){
