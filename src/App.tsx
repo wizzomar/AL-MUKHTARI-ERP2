@@ -43,7 +43,17 @@ const navGroups = [
   ]},
 ]
 const money = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(v || 0))
-const errorText = (e: unknown) => e instanceof Error ? e.message : 'Khalad aan la aqoon ayaa dhacay.'
+const errorText = (e: unknown) => {
+  if (e instanceof Error) return e.message
+  if (typeof e === 'string') return e
+  if (e && typeof e === 'object') {
+    const value = e as Record<string, unknown>
+    const message = value.message ?? value.msg ?? value.error_description ?? value.error
+    if (typeof message === 'string' && message.trim()) return message
+    try { return JSON.stringify(e) } catch { /* use fallback below */ }
+  }
+  return 'Khalad aan la aqoon ayaa dhacay.'
+}
 
 function Login({ onLogin, onForgot }: { onLogin: (email: string, password: string) => Promise<void>; onForgot: () => void }) {
   const [email, setEmail] = useState('')
