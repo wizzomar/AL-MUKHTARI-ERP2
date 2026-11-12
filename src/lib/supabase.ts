@@ -18,8 +18,8 @@ export const supabase = supabaseConfigured
         autoRefreshToken: true,
         // Use PKCE for recovery links and let App.tsx exchange the callback code
         // exactly once. This avoids the SDK and app racing to consume the same URL.
-        flowType: 'pkce',
-        detectSessionInUrl: false,
+        flowType: 'implicit',
+        detectSessionInUrl: true,
       },
     })
   : null
