@@ -84,7 +84,7 @@ function ForgotPassword({ onBack, onCodeSent }: { onBack: () => void; onCodeSent
   }
   return <div className="login-screen"><form className="login-card" onSubmit={submit}>
     <div className="login-brand"><div className="brand-mark">AM</div><div><strong>AL-MUKHTARI</strong><span>GENERAL TRADING COMPANY</span></div></div>
-    <div className="login-lock"><LockKeyhole size={22}/></div><h1>Forgot Password</h1><p>Geli email-ka account-kaaga. Waxaan kuu soo diraynaa koodh xaqiijin ah oo 6-god ah.</p>
+    <div className="login-lock"><LockKeyhole size={22}/></div><h1>Forgot Password</h1><p>Geli email-ka account-kaaga. Waxaan kuu soo diraynaa koodh xaqiijin ah oo 8-god ah.</p>
     <label>Email<input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@company.com"/></label>
     {message && <div className="form-error">{message}</div>}
     <button className="primary-button login-submit" disabled={busy}>{busy ? 'Diraya koodhka…' : 'Ii soo dir koodhka'}</button>
@@ -102,7 +102,7 @@ function ResetPassword({ email, onComplete }: { email: string; onComplete: () =>
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (!supabase) return
-    if (!verified && !/^\\d{6}$/.test(token.trim())) { setMessage('Geli koodhka 6-god ah ee email-ka laguu soo diray.'); return }
+    if (!verified && !/^\d{8}$/.test(token.trim())) { setMessage('Geli koodhka 8-god ah ee email-ka laguu soo diray.'); return }
     if (password.length < 8) { setMessage('Password-ku ha ahaado ugu yaraan 8 xaraf.'); return }
     if (password !== confirm) { setMessage('Labada password isma laha.'); return }
     setBusy(true); setMessage('')
@@ -124,8 +124,8 @@ function ResetPassword({ email, onComplete }: { email: string; onComplete: () =>
   }
   return <div className="login-screen"><form className="login-card" onSubmit={submit}>
     <div className="login-brand"><div className="brand-mark">AM</div><div><strong>AL-MUKHTARI</strong><span>GENERAL TRADING COMPANY</span></div></div>
-    <div className="login-lock"><LockKeyhole size={22}/></div><h1>Xaqiiji koodhka</h1><p>Koodh 6-god ah ayaa loo diray <strong>{email}</strong>. Geli koodhka, kadibna samee password cusub.</p>
-    <label>Koodhka xaqiijinta<input type="text" inputMode="numeric" autoComplete="one-time-code" required maxLength={6} pattern="[0-9]{6}" value={token} onChange={e=>setToken(e.target.value.replace(/\\D/g, '').slice(0, 6))} placeholder="123456" disabled={verified}/></label>
+    <div className="login-lock"><LockKeyhole size={22}/></div><h1>Xaqiiji koodhka</h1><p>Koodh 8-god ah ayaa loo diray <strong>{email}</strong>. Geli koodhka, kadibna samee password cusub.</p>
+    <label>Koodhka xaqiijinta<input type="text" inputMode="numeric" autoComplete="one-time-code" required maxLength={8} pattern="[0-9]{8}" value={token} onChange={e=>setToken(e.target.value.replace(/\D/g, '').slice(0, 8))} placeholder="12345678" disabled={verified}/></label>
     <label>Password cusub<input type="password" autoComplete="new-password" required minLength={8} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Ugu yaraan 8 xaraf"/></label>
     <label>Xaqiiji password-ka<input type="password" autoComplete="new-password" required minLength={8} value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Ku celi password-ka"/></label>
     {message && <div className="form-error">{message}</div>}
