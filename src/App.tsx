@@ -153,66 +153,32 @@ function App() {
   useEffect(() => {
     if (!supabase) { setProfileLoading(false); return }
     let alive = true
+
+    // Supabase detects and stores the browser recovery session from the URL.
+    // Subscribe before reading the session so PASSWORD_RECOVERY is not missed.
     const { data: listener } = supabase.auth.onAuthStateChange((event, next) => {
       if (!alive) return
       setSession(next)
       if (event === 'PASSWORD_RECOVERY' && next) setAuthView('reset')
     })
+
     async function initializeAuth() {
       try {
         const url = new URL(window.location.href)
         const params = url.searchParams
         const hash = new URLSearchParams(url.hash.replace(/^#/, ''))
-        let recoverySession: Session | null = null
-
-        // PKCE flow: Supabase redirects back with ?code=...
-        const code = params.get('code')
-        if (code) {
-          const { data, error: exchangeError } = await supabase!.auth.exchangeCodeForSession(code)
-          if (exchangeError) throw exchangeError
-          recoverySession = data.session
-        }
-
-        // Token-hash flow: support links/templates that return token_hash in query.
-        if (!recoverySession && params.get('token_hash') && params.get('type') === 'recovery') {
-          const { data, error: verifyError } = await supabase!.auth.verifyOtp({
-            token_hash: params.get('token_hash')!,
-            type: 'recovery',
-          })
-          if (verifyError) throw verifyError
-          recoverySession = data.session
-        }
-
-        // Implicit flow: Supabase redirects back with tokens in the URL fragment.
-        if (!recoverySession && hash.get('access_token') && hash.get('refresh_token')) {
-          const { data, error: sessionError } = await supabase!.auth.setSession({
-            access_token: hash.get('access_token')!,
-            refresh_token: hash.get('refresh_token')!,
-          })
-          if (sessionError) throw sessionError
-          recoverySession = data.session
-        }
-
-        if (recoverySession) {
-          if (alive) {
-            setSession(recoverySession)
+        const { data, error: authError } = await supabase!.auth.getSession()
+        if (authError) throw authError
+        if (alive) {
+          setSession(data.session)
+          // PASSWORD_RECOVERY is the primary signal. This fallback supports
+          // an already-established recovery session after a page refresh.
+          if (data.session && (params.get('type') === 'recovery' || hash.get('type') === 'recovery')) {
             setAuthView('reset')
           }
-          window.history.replaceState({}, document.title, url.pathname)
-        } else {
-          const { data, error: authError } = await supabase!.auth.getSession()
-          if (authError) throw authError
-          if (alive) {
-            setSession(data.session)
-            // Never show the reset form unless a recovery session exists.
-            if (data.session && (params.get('type') === 'recovery' || hash.get('type') === 'recovery')) {
-              setAuthView('reset')
-            }
-          }
         }
-
         const urlError = params.get('error_description') || hash.get('error_description')
-        if (urlError) throw new Error(decodeURIComponent(urlError.replace(/\+/g, ' ')))
+        if (urlError) throw new Error(decodeURIComponent(urlError.replace(/\\+/g, ' ')))
       } catch (err) {
         if (alive) {
           setAuthView('login')
@@ -222,6 +188,7 @@ function App() {
         if (alive) setProfileLoading(false)
       }
     }
+
     void initializeAuth()
     return () => { alive = false; listener.subscription.unsubscribe() }
   }, [])
