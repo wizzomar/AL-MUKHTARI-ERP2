@@ -174,6 +174,8 @@ function App() {
     async function initializeAuth() {
       try {
         const url = new URL(window.location.href)
+        const params = url.searchParams
+        const hash = new URLSearchParams(url.hash.replace(/^#/, ''))
         const { data, error: authError } = await supabase!.auth.getSession()
         if (authError) throw authError
         if (alive) {
