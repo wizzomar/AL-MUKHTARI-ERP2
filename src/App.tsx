@@ -67,66 +67,76 @@ function Login({ onLogin, onForgot }: { onLogin: (email: string, password: strin
 }
 
 
-function ForgotPassword({ onBack }: { onBack: () => void }) {
+function ForgotPassword({ onBack, onCodeSent }: { onBack: () => void; onCodeSent: (email: string) => void }) {
   const [email, setEmail] = useState('')
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
-  const [sent, setSent] = useState(false)
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (!supabase) return
     setBusy(true); setMessage('')
     try {
-      const { error: e1 } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: window.location.origin })
+      const normalizedEmail = email.trim().toLowerCase()
+      const { error: e1 } = await supabase.auth.resetPasswordForEmail(normalizedEmail)
       if (e1) throw e1
-      setSent(true)
-      setMessage('Haddii email-kan uu account leeyahay, link dib-u-dejin ah ayaa loo diray. Ka eeg Inbox iyo Spam.')
+      onCodeSent(normalizedEmail)
     } catch (err) { setMessage(errorText(err)) } finally { setBusy(false) }
   }
   return <div className="login-screen"><form className="login-card" onSubmit={submit}>
     <div className="login-brand"><div className="brand-mark">AM</div><div><strong>AL-MUKHTARI</strong><span>GENERAL TRADING COMPANY</span></div></div>
-    <div className="login-lock"><LockKeyhole size={22}/></div><h1>Forgot Password</h1><p>Geli email-ka account-kaaga si aan kuugu dirno link aad password cusub ku samaysato.</p>
+    <div className="login-lock"><LockKeyhole size={22}/></div><h1>Forgot Password</h1><p>Geli email-ka account-kaaga. Waxaan kuu soo diraynaa koodh xaqiijin ah oo 6-god ah.</p>
     <label>Email<input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@company.com"/></label>
-    {message && <div className={sent ? 'success-notice' : 'form-error'}>{message}</div>}
-    <button className="primary-button login-submit" disabled={busy}>{busy ? 'Diraya…' : 'Dir link-ga dib-u-dejinta'}</button>
+    {message && <div className="form-error">{message}</div>}
+    <button className="primary-button login-submit" disabled={busy}>{busy ? 'Diraya koodhka…' : 'Ii soo dir koodhka'}</button>
     <button type="button" className="auth-link" onClick={onBack}>Ku noqo Login</button>
   </form></div>
 }
 
-function ResetPassword({ onComplete }: { onComplete: () => void }) {
+function ResetPassword({ email, onComplete }: { email: string; onComplete: () => void }) {
+  const [token, setToken] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [verified, setVerified] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   async function submit(e: FormEvent) {
     e.preventDefault()
     if (!supabase) return
+    if (!verified && !/^\\d{6}$/.test(token.trim())) { setMessage('Geli koodhka 6-god ah ee email-ka laguu soo diray.'); return }
     if (password.length < 8) { setMessage('Password-ku ha ahaado ugu yaraan 8 xaraf.'); return }
     if (password !== confirm) { setMessage('Labada password isma laha.'); return }
     setBusy(true); setMessage('')
     try {
-      const { data: current } = await supabase.auth.getSession()
-      if (!current.session) throw new Error('Fadhiga password reset-ka ma jiro ama link-ga lama xaqiijin. Fur link-gii email-ka isla browser-kan, ama codso link cusub.')
-      const { error: e1 } = await supabase.auth.updateUser({ password })
-      if (e1) throw e1
-      setMessage('Password-ka cusub waa la dejiyey. Fadlan mar kale gal.')
+      if (!verified) {
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          email,
+          token: token.trim(),
+          type: 'recovery',
+        })
+        if (verifyError) throw verifyError
+        setVerified(true)
+      }
+      const { error: updateError } = await supabase.auth.updateUser({ password })
+      if (updateError) throw updateError
       await supabase.auth.signOut()
       onComplete()
     } catch (err) { setMessage(errorText(err)) } finally { setBusy(false) }
   }
   return <div className="login-screen"><form className="login-card" onSubmit={submit}>
     <div className="login-brand"><div className="brand-mark">AM</div><div><strong>AL-MUKHTARI</strong><span>GENERAL TRADING COMPANY</span></div></div>
-    <div className="login-lock"><LockKeyhole size={22}/></div><h1>Password cusub</h1><p>Samee password cusub oo ugu yaraan 8 xaraf ah.</p>
+    <div className="login-lock"><LockKeyhole size={22}/></div><h1>Xaqiiji koodhka</h1><p>Koodh 6-god ah ayaa loo diray <strong>{email}</strong>. Geli koodhka, kadibna samee password cusub.</p>
+    <label>Koodhka xaqiijinta<input type="text" inputMode="numeric" autoComplete="one-time-code" required maxLength={6} pattern="[0-9]{6}" value={token} onChange={e=>setToken(e.target.value.replace(/\\D/g, '').slice(0, 6))} placeholder="123456" disabled={verified}/></label>
     <label>Password cusub<input type="password" autoComplete="new-password" required minLength={8} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Ugu yaraan 8 xaraf"/></label>
     <label>Xaqiiji password-ka<input type="password" autoComplete="new-password" required minLength={8} value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Ku celi password-ka"/></label>
     {message && <div className="form-error">{message}</div>}
-    <button className="primary-button login-submit" disabled={busy}>{busy ? 'Cusboonaysiinaya…' : 'Deji password cusub'}</button>
+    <button className="primary-button login-submit" disabled={busy}>{busy ? 'Xaqiijinaya…' : 'Xaqiiji koodhka oo deji password-ka'}</button>
   </form></div>
 }
 
 function App() {
   const [session, setSession] = useState<Session | null>(null)
   const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>('login')
+  const [resetEmail, setResetEmail] = useState('')
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
   const [active, setActive] = useState('Dashboard')
@@ -159,23 +169,15 @@ function App() {
     const { data: listener } = supabase.auth.onAuthStateChange((event, next) => {
       if (!alive) return
       setSession(next)
-      if (event === 'PASSWORD_RECOVERY' && next) setAuthView('reset')
     })
 
     async function initializeAuth() {
       try {
         const url = new URL(window.location.href)
-        const params = url.searchParams
-        const hash = new URLSearchParams(url.hash.replace(/^#/, ''))
         const { data, error: authError } = await supabase!.auth.getSession()
         if (authError) throw authError
         if (alive) {
           setSession(data.session)
-          // PASSWORD_RECOVERY is the primary signal. This fallback supports
-          // an already-established recovery session after a page refresh.
-          if (data.session && (params.get('type') === 'recovery' || hash.get('type') === 'recovery')) {
-            setAuthView('reset')
-          }
         }
         const urlError = params.get('error_description') || hash.get('error_description')
         if (urlError) throw new Error(decodeURIComponent(urlError.replace(/\\+/g, ' ')))
@@ -347,8 +349,8 @@ function App() {
 
   if (!supabaseConfigured || !supabase) return <div className="setup-screen"><div className="setup-card"><div className="brand-mark">AM</div><h1>Supabase setup ayaa loo baahan yahay</h1><p>Ku dar labada environment variables ee Vercel ama faylka .env.local si app-ku ugu xirmo database-ka.</p><code>VITE_SUPABASE_URL</code><code>VITE_SUPABASE_PUBLISHABLE_KEY</code><small>Ha gelin service_role key gudaha frontend-ka.</small></div></div>
   if (profileLoading) return <div className="loading-screen"><div className="spinner"/><span>Hubinta rukhsadda account-ka…</span></div>
-  if (authView === 'reset') return <ResetPassword onComplete={() => setAuthView('login')}/>
-  if (authView === 'forgot') return <ForgotPassword onBack={() => setAuthView('login')}/>
+  if (authView === 'reset') return <ResetPassword email={resetEmail} onComplete={() => { setResetEmail(''); setAuthView('login') }}/>
+  if (authView === 'forgot') return <ForgotPassword onBack={() => setAuthView('login')} onCodeSent={(email) => { setResetEmail(email); setAuthView('reset') }}/>
   if (!session) return <Login onLogin={login} onForgot={() => setAuthView('forgot')}/>
   if (!profile) return <div className="loading-screen"><h2>Gelitaanka lama dhammeystirin</h2><p className="form-error">{error || 'Profile-ka shaqaalaha lama helin.'}</p><div className="loading-actions"><button className="primary-button" onClick={() => window.location.reload()}>Dib u tijaabi</button><button className="secondary-button" onClick={logout}>Ka bax oo dib u gal</button></div></div>
 
