@@ -215,7 +215,9 @@ function ResetPassword({ email, onComplete }: { email: string; onComplete: () =>
       }
       const { error: updateError } = await supabase.auth.updateUser({ password })
       if (updateError) throw updateError
-      await supabase.auth.signOut()
+      // The password change is already committed. Clear only this browser's
+      // recovery session; a sign-out network error must not report reset failure.
+      try { await supabase.auth.signOut({ scope: 'local' }) } catch { /* best-effort local cleanup */ }
       onComplete()
     } catch (err) { setMessage(errorText(err)) } finally { setBusy(false) }
   }
