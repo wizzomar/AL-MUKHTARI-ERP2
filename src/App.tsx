@@ -166,7 +166,7 @@ function App() {
 
     // Supabase detects and stores the browser recovery session from the URL.
     // Subscribe before reading the session so PASSWORD_RECOVERY is not missed.
-    const { data: listener } = supabase.auth.onAuthStateChange((event, next) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, next) => {
       if (!alive) return
       setSession(next)
     })
