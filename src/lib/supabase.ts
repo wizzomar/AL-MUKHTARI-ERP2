@@ -16,8 +16,8 @@ export const supabase = supabaseConfigured
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        // Use PKCE for recovery links and let App.tsx exchange the callback code
-        // exactly once. This avoids the SDK and app racing to consume the same URL.
+        // This is a browser-only Vite app. Let Supabase detect and persist the
+        // implicit recovery tokens from the URL before App.tsx reads the session.
         flowType: 'implicit',
         detectSessionInUrl: true,
       },
