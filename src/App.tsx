@@ -194,6 +194,7 @@ function ResetPassword({ email, onComplete }: { email: string; onComplete: () =>
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [verified, setVerified] = useState(false)
+  const [success, setSuccess] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   async function submit(e: FormEvent) {
@@ -218,9 +219,15 @@ function ResetPassword({ email, onComplete }: { email: string; onComplete: () =>
       // The password change is already committed. Clear only this browser's
       // recovery session; a sign-out network error must not report reset failure.
       try { await supabase.auth.signOut({ scope: 'local' }) } catch { /* best-effort local cleanup */ }
-      onComplete()
+      setSuccess(true)
     } catch (err) { setMessage(errorText(err)) } finally { setBusy(false) }
   }
+  if (success) return <div className="login-screen"><div className="login-card">
+    <div className="login-brand"><div className="brand-mark">AM</div><div><strong>AL-MUKHTARI</strong><span>GENERAL TRADING COMPANY</span></div></div>
+    <div className="login-lock"><LockKeyhole size={22}/></div><h1>Password-ka waa la beddelay!</h1>
+    <p>Password-ka account-kaaga si guul leh ayaa loo cusboonaysiiyey. Hadda waxaad ku geli kartaa password-ka cusub.</p>
+    <button type="button" className="primary-button login-submit" onClick={onComplete}>Ku noqo Login</button>
+  </div></div>
   return <div className="login-screen"><form className="login-card" onSubmit={submit}>
     <div className="login-brand"><div className="brand-mark">AM</div><div><strong>AL-MUKHTARI</strong><span>GENERAL TRADING COMPANY</span></div></div>
     <div className="login-lock"><LockKeyhole size={22}/></div><h1>Xaqiiji koodhka</h1><p>Koodh 8-god ah ayaa loo diray <strong>{email}</strong>. Geli koodhka, kadibna samee password cusub.</p>
