@@ -36,6 +36,7 @@ const navGroups = [
   { title: 'IIBKA IYO MACAAMIISHA', items: [
     { label: 'Iibka', icon: ClipboardList },
     { label: 'Macaamiisha', icon: Users },
+    { label: 'Shaqaalaha', icon: Users },
   ]},
   { title: 'MAALIYADDA', items: [
     { label: 'Lacagaha', icon: Wallet },
@@ -55,7 +56,7 @@ const errorText = (e: unknown) => {
   return 'Khalad aan la aqoon ayaa dhacay.'
 }
 
-function Login({ onLogin, onForgot }: { onLogin: (email: string, password: string) => Promise<void>; onForgot: () => void }) {
+function Login({ onLogin, onForgot, onSignup }: { onLogin: (email: string, password: string) => Promise<void>; onForgot: () => void; onSignup: () => void }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -72,8 +73,94 @@ function Login({ onLogin, onForgot }: { onLogin: (email: string, password: strin
     {message && <div className="form-error">{message}</div>}
     <button className="primary-button login-submit" disabled={busy}>{busy ? 'Fadlan sug…' : 'Soo gal'}</button>
     <button type="button" className="auth-link" onClick={onForgot}>Password-ka ma illowday? / Forgot Password</button>
-    <small>Gelitaanka waxaa maamula maamulka shirkadda. Haddii aadan haysan account, la xiriir Owner-ka.</small>
+    <button type="button" className="auth-link" onClick={onSignup}>Account cusub samee / Sign Up</button>
+    <small>Account kasta oo cusub wuxuu sugayaa ansixinta Owner-ka ka hor inta aan la gelin ERP-ga.</small>
   </form></div>
+}
+
+
+function SignUp({ onBack, onSubmitted }: { onBack: () => void; onSubmitted: () => void }) {
+  const [fullName, setFullName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const [success, setSuccess] = useState(false)
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    if (!supabase) return
+    if (password.length < 8) { setMessage('Password-ku ha ahaado ugu yaraan 8 xaraf.'); return }
+    if (password !== confirm) { setMessage('Labada password isma laha.'); return }
+    setBusy(true); setMessage('')
+    try {
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: { data: { full_name: fullName.trim(), phone: phone.trim() || null }, emailRedirectTo: window.location.origin },
+      })
+      if (signUpError) throw signUpError
+      if (!data.user) throw new Error('Account lama abuuri karin. Fadlan mar kale isku day.')
+      setSuccess(true)
+    } catch (err) { setMessage(errorText(err)) } finally { setBusy(false) }
+  }
+
+  if (success) return <div className="login-screen"><div className="login-card">
+    <div className="login-brand"><div className="brand-mark">AM</div><div><strong>AL-MUKHTARI</strong><span>GENERAL TRADING COMPANY</span></div></div>
+    <div className="login-lock"><LockKeyhole size={22}/></div><h1>Codsiga waa la helay</h1>
+    <p>Haddii email xaqiijin loo baahan yahay, ka xaqiiji email-kaaga. Kadib account-kaagu wuxuu sugayaa ansixinta Owner-ka shirkadda.</p>
+    <button type="button" className="primary-button login-submit" onClick={onSubmitted}>Ku noqo Login</button>
+  </div></div>
+
+  return <div className="login-screen"><form className="login-card" onSubmit={submit}>
+    <div className="login-brand"><div className="brand-mark">AM</div><div><strong>AL-MUKHTARI</strong><span>GENERAL TRADING COMPANY</span></div></div>
+    <div className="login-lock"><Users size={22}/></div><h1>Account cusub samee</h1>
+    <p>Buuxi xogtaada. Account-ka cusub wuxuu sugayaa ansixinta Owner-ka.</p>
+    <label>Magaca oo buuxa<input required autoComplete="name" value={fullName} onChange={e=>setFullName(e.target.value)} placeholder="Magacaaga"/></label>
+    <label>Telefoon (ikhtiyaari)<input type="tel" autoComplete="tel" value={phone} onChange={e=>setPhone(e.target.value)} placeholder="+252..."/></label>
+    <label>Email<input type="email" autoComplete="email" required value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@company.com"/></label>
+    <label>Password<input type="password" autoComplete="new-password" required minLength={8} value={password} onChange={e=>setPassword(e.target.value)} placeholder="Ugu yaraan 8 xaraf"/></label>
+    <label>Xaqiiji password-ka<input type="password" autoComplete="new-password" required minLength={8} value={confirm} onChange={e=>setConfirm(e.target.value)} placeholder="Ku celi password-ka"/></label>
+    {message && <div className="form-error">{message}</div>}
+    <button className="primary-button login-submit" disabled={busy}>{busy ? 'Account-ka abuuraya…' : 'Diiwaangeli'}</button>
+    <button type="button" className="auth-link" onClick={onBack}>Ku noqo Login</button>
+  </form></div>
+}
+
+function UsersManagement({ companyId }: { companyId: string }) {
+  const [rows, setRows] = useState<Array<{id:string;full_name:string;phone:string|null;created_at:string;is_active:boolean;roles?:{name_so:string;name_en:string}|null}>>([])
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  async function load() {
+    if (!supabase) return
+    setBusy(true); setMessage('')
+    try {
+      const { data, error } = await supabase.from('profiles').select('id,full_name,phone,created_at,is_active,roles(name_so,name_en)').eq('company_id', companyId).order('created_at', { ascending: false })
+      if (error) throw error
+      setRows((data || []) as typeof rows)
+    } catch (err) { setMessage(errorText(err)) } finally { setBusy(false) }
+  }
+  useEffect(() => { void load() }, [companyId])
+  async function approve(id: string) {
+    if (!supabase) return
+    setBusy(true); setMessage('')
+    try {
+      const { error } = await supabase.from('profiles').update({ is_active: true }).eq('id', id).eq('company_id', companyId)
+      if (error) throw error
+      await load()
+      setMessage('Account-ka waa la ansixiyey.')
+    } catch (err) { setMessage(errorText(err)) } finally { setBusy(false) }
+  }
+  return <section className="panel data-panel">
+    <div className="panel-heading"><div><h2>Maamulka Shaqaalaha</h2><p>Ansixi account-yada cusub ka hor inta aysan ERP-ga geli karin.</p></div><button className="secondary-button" onClick={()=>void load()} disabled={busy}><RefreshCw size={16}/> Cusboonaysii</button></div>
+    {message && <div className={message.includes('ansixiyey')?'success-notice':'error-notice'}>{message}</div>}
+    <div className="table-wrap"><table><thead><tr><th>Magaca</th><th>Telefoon</th><th>Doorka</th><th>Taariikhda</th><th>Xaaladda</th><th>Ficil</th></tr></thead><tbody>
+      {rows.map(row=><tr key={row.id}><td><strong>{row.full_name}</strong></td><td>{row.phone||'—'}</td><td>{row.roles?.name_so||row.roles?.name_en||'Sales Officer'}</td><td>{new Date(row.created_at).toLocaleDateString('en-GB')}</td><td><span className={row.is_active?'status-active':'status-inactive'}>{row.is_active?'Firfircoon':'Sugaya ansixin'}</span></td><td>{!row.is_active&&<button className="small-action" disabled={busy} onClick={()=>void approve(row.id)}>Ansixi</button>}</td></tr>)}
+      {rows.length===0&&<tr><td colSpan={6} className="empty-cell">{busy?'Waa la soo rarayaa…':'Shaqaale lama helin.'}</td></tr>}
+    </tbody></table></div>
+  </section>
 }
 
 
@@ -145,7 +232,7 @@ function ResetPassword({ email, onComplete }: { email: string; onComplete: () =>
 
 function App() {
   const [session, setSession] = useState<Session | null>(null)
-  const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>('login')
+  const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset' | 'signup'>('login')
   const [resetEmail, setResetEmail] = useState('')
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
@@ -361,9 +448,10 @@ function App() {
 
   if (!supabaseConfigured || !supabase) return <div className="setup-screen"><div className="setup-card"><div className="brand-mark">AM</div><h1>Supabase setup ayaa loo baahan yahay</h1><p>Ku dar labada environment variables ee Vercel ama faylka .env.local si app-ku ugu xirmo database-ka.</p><code>VITE_SUPABASE_URL</code><code>VITE_SUPABASE_PUBLISHABLE_KEY</code><small>Ha gelin service_role key gudaha frontend-ka.</small></div></div>
   if (profileLoading) return <div className="loading-screen"><div className="spinner"/><span>Hubinta rukhsadda account-ka…</span></div>
+  if (authView === 'signup') return <SignUp onBack={() => setAuthView('login')} onSubmitted={() => setAuthView('login')}/>
   if (authView === 'reset') return <ResetPassword email={resetEmail} onComplete={() => { setResetEmail(''); setAuthView('login') }}/>
   if (authView === 'forgot') return <ForgotPassword onBack={() => setAuthView('login')} onCodeSent={(email) => { setResetEmail(email); setAuthView('reset') }}/>
-  if (!session) return <Login onLogin={login} onForgot={() => setAuthView('forgot')}/>
+  if (!session) return <Login onLogin={login} onForgot={() => setAuthView('forgot')} onSignup={() => setAuthView('signup')}/>
   if (!profile) return <div className="loading-screen"><h2>Gelitaanka lama dhammeystirin</h2><p className="form-error">{error || 'Profile-ka shaqaalaha lama helin.'}</p><div className="loading-actions"><button className="primary-button" onClick={() => window.location.reload()}>Dib u tijaabi</button><button className="secondary-button" onClick={logout}>Ka bax oo dib u gal</button></div></div>
 
   return <div className="app-shell">
@@ -378,6 +466,7 @@ function App() {
       <div className="content">
         <div className="page-heading"><div><div className="eyebrow">MAAMULKA GANACSIGA</div><h1>{active==='Dashboard'?'Dashboard-ka Guud':active}</h1><p>Ku soo dhowow nidaamka maamulka AL-MUKHTARI.</p></div><div className="date-chip">USD <span>•</span> VAT 5%</div></div>
         {notice&&<div className="success-notice">{notice}</div>}{error&&<div className="error-notice"><AlertTriangle size={17}/>{error}<button onClick={()=>setError('')}><X size={15}/></button></div>}
+        {active==='Shaqaalaha' ? <UsersManagement companyId={profile.company_id}/> : null}
         {active==='Badeecooyinka' ? <section className="panel data-panel">
           <div className="panel-heading"><div><h2>Diiwaanka Badeecooyinka</h2><p>{products.length} badeeco ayaa diiwaangashan</p></div><button className="primary-button" onClick={openNewProduct}><Plus size={16}/> Badeeco cusub</button></div>
           <div className="table-wrap"><table><thead><tr><th>SKU</th><th>Badeecada</th><th>Qaybta</th><th>Halbeegga</th><th>Qiimaha Cost</th><th>Jumlo</th><th>Tafaariiq</th><th>Kaydka</th><th>Xaalad</th><th></th></tr></thead><tbody>{filteredProducts.map(p=><tr key={p.id}><td className="sku-cell">{p.sku}</td><td><strong>{p.name_so||p.name_en}</strong><small>{p.name_en}</small></td><td>{p.categories?.name_so||'—'}</td><td>{p.units?.name_so||'—'}</td><td>{money(Number(p.cost_price))}</td><td>{money(Number(p.wholesale_price))}</td><td>{p.retail_price===null?'—':money(Number(p.retail_price))}</td><td>{balanceMap.get(p.id)||0}</td><td><span className={p.is_active?'status-active':'status-inactive'}>{p.is_active?'Firfircoon':'Xiran'}</span></td><td><div className="row-actions"><button className="small-action" onClick={()=>openEditProduct(p)}>Wax ka beddel</button><button className="small-action" onClick={()=>toggleProductStatus(p)}>{p.is_active?"Xir":"Hawl geli"}</button><button className="small-action" onClick={()=>{setUnitsModal(p);setUnitForm({unit_id:"",conversion_to_base:"1",barcode:""})}}>Halbeegyo</button><button className="small-action" onClick={()=>setStockModal(p)}>Kayd geli</button></div></td></tr>)}{filteredProducts.length===0&&<tr><td colSpan={10} className="empty-cell">{search?'Wax badeeco ah lama helin.':'Weli badeeco lama diiwaangelin. Riix “Badeeco cusub” si aad u bilowdo.'}</td></tr>}</tbody></table></div>
