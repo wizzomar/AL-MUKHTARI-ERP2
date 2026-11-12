@@ -151,18 +151,51 @@ function App() {
   useEffect(() => {
     if (!supabase) { setProfileLoading(false); return }
     let alive = true
-    supabase.auth.getSession()
-      .then(({ data, error: authError }) => {
-        if (!alive) return
-        if (authError) setError(authError.message)
-        setSession(data.session)
-      })
-      .catch((err) => { if (alive) setError(errorText(err)) })
-      .finally(() => { if (alive) setProfileLoading(false) })
     const { data: listener } = supabase.auth.onAuthStateChange((event, next) => {
+      if (!alive) return
       if (event === 'PASSWORD_RECOVERY') setAuthView('reset')
       setSession(next)
     })
+    async function initializeAuth() {
+      try {
+        const url = new URL(window.location.href)
+        const code = url.searchParams.get('code')
+        const hash = new URLSearchParams(url.hash.replace(/^#/, ''))
+        if (code) {
+          const { data, error: exchangeError } = await supabase!.auth.exchangeCodeForSession(code)
+          if (exchangeError) throw exchangeError
+          if (data.session) {
+            setSession(data.session)
+            setAuthView('reset')
+            window.history.replaceState({}, document.title, url.pathname)
+          }
+        } else if (hash.get('type') === 'recovery') {
+          const access_token = hash.get('access_token')
+          const refresh_token = hash.get('refresh_token')
+          if (access_token && refresh_token) {
+            const { data, error: sessionError } = await supabase!.auth.setSession({ access_token, refresh_token })
+            if (sessionError) throw sessionError
+            setSession(data.session)
+            setAuthView('reset')
+            window.history.replaceState({}, document.title, url.pathname)
+          } else {
+            throw new Error('Link-ga password reset-ka ma dhammaystirna. Codso link cusub.')
+          }
+        } else {
+          const { data, error: authError } = await supabase!.auth.getSession()
+          if (authError) throw authError
+          if (alive) setSession(data.session)
+        }
+      } catch (err) {
+        if (alive) {
+          setAuthView('login')
+          setError('Link-ga password reset-ka ma shaqaynayo ama wuu dhacay. Codso link cusub. (' + errorText(err) + ')')
+        }
+      } finally {
+        if (alive) setProfileLoading(false)
+      }
+    }
+    void initializeAuth()
     return () => { alive = false; listener.subscription.unsubscribe() }
   }, [])
 
