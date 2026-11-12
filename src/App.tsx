@@ -105,6 +105,8 @@ function ResetPassword({ onComplete }: { onComplete: () => void }) {
     if (password !== confirm) { setMessage('Labada password isma laha.'); return }
     setBusy(true); setMessage('')
     try {
+      const { data: current } = await supabase.auth.getSession()
+      if (!current.session) throw new Error('Fadhiga password reset-ka ma jiro ama link-ga lama xaqiijin. Fur link-gii email-ka isla browser-kan, ama codso link cusub.')
       const { error: e1 } = await supabase.auth.updateUser({ password })
       if (e1) throw e1
       setMessage('Password-ka cusub waa la dejiyey. Fadlan mar kale gal.')
@@ -124,7 +126,7 @@ function ResetPassword({ onComplete }: { onComplete: () => void }) {
 
 function App() {
   const [session, setSession] = useState<Session | null>(null)
-  const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>(() => window.location.hash.includes('type=recovery') ? 'reset' : 'login')
+  const [authView, setAuthView] = useState<'login' | 'forgot' | 'reset'>('login')
   const [profile, setProfile] = useState<Profile | null>(null)
   const [profileLoading, setProfileLoading] = useState(true)
   const [active, setActive] = useState('Dashboard')
@@ -153,43 +155,68 @@ function App() {
     let alive = true
     const { data: listener } = supabase.auth.onAuthStateChange((event, next) => {
       if (!alive) return
-      if (event === 'PASSWORD_RECOVERY') setAuthView('reset')
       setSession(next)
+      if (event === 'PASSWORD_RECOVERY' && next) setAuthView('reset')
     })
     async function initializeAuth() {
       try {
         const url = new URL(window.location.href)
-        const code = url.searchParams.get('code')
+        const params = url.searchParams
         const hash = new URLSearchParams(url.hash.replace(/^#/, ''))
+        let recoverySession: Session | null = null
+
+        // PKCE flow: Supabase redirects back with ?code=...
+        const code = params.get('code')
         if (code) {
           const { data, error: exchangeError } = await supabase!.auth.exchangeCodeForSession(code)
           if (exchangeError) throw exchangeError
-          if (data.session) {
-            setSession(data.session)
+          recoverySession = data.session
+        }
+
+        // Token-hash flow: support links/templates that return token_hash in query.
+        if (!recoverySession && params.get('token_hash') && params.get('type') === 'recovery') {
+          const { data, error: verifyError } = await supabase!.auth.verifyOtp({
+            token_hash: params.get('token_hash')!,
+            type: 'recovery',
+          })
+          if (verifyError) throw verifyError
+          recoverySession = data.session
+        }
+
+        // Implicit flow: Supabase redirects back with tokens in the URL fragment.
+        if (!recoverySession && hash.get('access_token') && hash.get('refresh_token')) {
+          const { data, error: sessionError } = await supabase!.auth.setSession({
+            access_token: hash.get('access_token')!,
+            refresh_token: hash.get('refresh_token')!,
+          })
+          if (sessionError) throw sessionError
+          recoverySession = data.session
+        }
+
+        if (recoverySession) {
+          if (alive) {
+            setSession(recoverySession)
             setAuthView('reset')
-            window.history.replaceState({}, document.title, url.pathname)
           }
-        } else if (hash.get('type') === 'recovery') {
-          const access_token = hash.get('access_token')
-          const refresh_token = hash.get('refresh_token')
-          if (access_token && refresh_token) {
-            const { data, error: sessionError } = await supabase!.auth.setSession({ access_token, refresh_token })
-            if (sessionError) throw sessionError
-            setSession(data.session)
-            setAuthView('reset')
-            window.history.replaceState({}, document.title, url.pathname)
-          } else {
-            throw new Error('Link-ga password reset-ka ma dhammaystirna. Codso link cusub.')
-          }
+          window.history.replaceState({}, document.title, url.pathname)
         } else {
           const { data, error: authError } = await supabase!.auth.getSession()
           if (authError) throw authError
-          if (alive) setSession(data.session)
+          if (alive) {
+            setSession(data.session)
+            // Never show the reset form unless a recovery session exists.
+            if (data.session && (params.get('type') === 'recovery' || hash.get('type') === 'recovery')) {
+              setAuthView('reset')
+            }
+          }
         }
+
+        const urlError = params.get('error_description') || hash.get('error_description')
+        if (urlError) throw new Error(decodeURIComponent(urlError.replace(/\+/g, ' ')))
       } catch (err) {
         if (alive) {
           setAuthView('login')
-          setError('Link-ga password reset-ka ma shaqaynayo ama wuu dhacay. Codso link cusub. (' + errorText(err) + ')')
+          setError('Link-ga password reset-ka lama xaqiijin ama wuu dhacay. Codso link cusub. (' + errorText(err) + ')')
         }
       } finally {
         if (alive) setProfileLoading(false)
