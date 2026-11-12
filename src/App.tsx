@@ -130,7 +130,7 @@ function SignUp({ onBack, onSubmitted }: { onBack: () => void; onSubmitted: () =
 }
 
 function UsersManagement({ companyId }: { companyId: string }) {
-  const [rows, setRows] = useState<Array<{id:string;full_name:string;phone:string|null;created_at:string;is_active:boolean;roles?:{name_so:string;name_en:string}|null}>>([])
+  const [rows, setRows] = useState<Array<{id:string;full_name:string;phone:string|null;created_at:string;is_active:boolean;roles?:Array<{name_so:string;name_en:string}>|null}>>([])
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
   async function load() {
@@ -157,7 +157,7 @@ function UsersManagement({ companyId }: { companyId: string }) {
     <div className="panel-heading"><div><h2>Maamulka Shaqaalaha</h2><p>Ansixi account-yada cusub ka hor inta aysan ERP-ga geli karin.</p></div><button className="secondary-button" onClick={()=>void load()} disabled={busy}><RefreshCw size={16}/> Cusboonaysii</button></div>
     {message && <div className={message.includes('ansixiyey')?'success-notice':'error-notice'}>{message}</div>}
     <div className="table-wrap"><table><thead><tr><th>Magaca</th><th>Telefoon</th><th>Doorka</th><th>Taariikhda</th><th>Xaaladda</th><th>Ficil</th></tr></thead><tbody>
-      {rows.map(row=><tr key={row.id}><td><strong>{row.full_name}</strong></td><td>{row.phone||'—'}</td><td>{row.roles?.name_so||row.roles?.name_en||'Sales Officer'}</td><td>{new Date(row.created_at).toLocaleDateString('en-GB')}</td><td><span className={row.is_active?'status-active':'status-inactive'}>{row.is_active?'Firfircoon':'Sugaya ansixin'}</span></td><td>{!row.is_active&&<button className="small-action" disabled={busy} onClick={()=>void approve(row.id)}>Ansixi</button>}</td></tr>)}
+      {rows.map(row=><tr key={row.id}><td><strong>{row.full_name}</strong></td><td>{row.phone||'—'}</td><td>{row.roles?.[0]?.name_so||row.roles?.[0]?.name_en||'Sales Officer'}</td><td>{new Date(row.created_at).toLocaleDateString('en-GB')}</td><td><span className={row.is_active?'status-active':'status-inactive'}>{row.is_active?'Firfircoon':'Sugaya ansixin'}</span></td><td>{!row.is_active&&<button className="small-action" disabled={busy} onClick={()=>void approve(row.id)}>Ansixi</button>}</td></tr>)}
       {rows.length===0&&<tr><td colSpan={6} className="empty-cell">{busy?'Waa la soo rarayaa…':'Shaqaale lama helin.'}</td></tr>}
     </tbody></table></div>
   </section>
